@@ -14,7 +14,7 @@ Setup = function_loadparameters2();
 Setup.CGHMethod = 2;
 Setup.GSoffset = 0;
 Setup.verbose = 0;
-Setup.useGPU = 1;
+Setup.useGPU = 0;
 Setup.SLM.is_onek = 1;
 
 if Setup.useGPU
@@ -35,23 +35,6 @@ disp('Setup complete.')
 
 bas.preview()
 
-%% connect to DAQ computer
-
-%run this first then code on daq
-fprintf('Waiting for msocket communication From DAQ... ')
-%then wait for a handshake
-srvsock = mslisten(42120);
-masterSocket = msaccept(srvsock,15);
-msclose(srvsock);
-sendVar = 'A';
-mssend(masterSocket, sendVar);
-
-invar = [];
-
-while ~strcmp(invar,'B')
-    invar = msrecv(masterSocket,.5);
-end
-fprintf('done.\r')
 
 %% set power levels
 
@@ -66,28 +49,22 @@ fprintf('done.\r')
 % scaled for multi-target holograms and hole-burning
 
 pwr = 10;
-slmCoords = [.4 .6 -0.025 1];
+slmCoords = [.4 .4 0 1];
 
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 
-DEestimate = DEfromSLMCoords(slmCoords);
-disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
 Function_Feed_SLM(Setup.SLM, Holo);
-mssend(masterSocket, [pwr/1000 1 1]);
 bas.preview()
-mssend(masterSocket, [0 1 1]);
 
 %% check pixel val
 bgd_frames = bas.grab(10);
 bgd = mean(bgd_frames, 3);
 
-mssend(masterSocket, [pwr/1000 1 1]);
 data = bas.grab(10);
-mssend(masterSocket, [0 1 1]);
-mssend(masterSocket, [0 1 1]);
+
 data = mean(data,3);
 frame = max(data-bgd, 0);
 [x,y] = function_findcenter(frame);
@@ -138,19 +115,7 @@ for i=1:numel(UZ)
         pause(0.1);
     end
 
-    mssend(masterSocket,[pwr/1000 1 1]);
-    invar=[];
-    while ~strcmp(invar,'gotit')
-        invar = msrecv(masterSocket,0.01);
-    end
-
     data = bas.grab(nframesCapture);
-
-    mssend(masterSocket,[0 1 1]);
-    invar=[];
-    while ~strcmp(invar,'gotit')
-        invar = msrecv(masterSocket,0.01);
-    end
 
      % process frame grabs
     data = mean(data, 3);
@@ -203,20 +168,8 @@ xyz = [0 0 UZ(peakPlane)];
 sutter.moveTo(xyz)
 pause(1)
 
-mssend(masterSocket,[pwr/1000 1 1]);
-invar=[];
-while ~strcmp(invar,'gotit')
-    invar = msrecv(masterSocket,0.01);
-end
-
 data = bas.grab(nframesCapture);
 data = mean(data, 3);
-
-mssend(masterSocket,[0 1 1]);
-invar=[];
-while ~strcmp(invar,'gotit')
-    invar = msrecv(masterSocket,0.01);
-end
 
 frame = max(data-bgd, 0);
 pos1 = imgaussfilt(frame, 2);
@@ -225,20 +178,8 @@ xyz = [0 muUsed UZ(peakPlane)];
 sutter.moveTo(xyz)
 pause(1)
 
-mssend(masterSocket,[pwr/1000 1 1]);
-invar=[];
-while ~strcmp(invar,'gotit')
-    invar = msrecv(masterSocket,0.01);
-end
-
 data = bas.grab(nframesCapture);
 data = mean(data, 3);
-
-mssend(masterSocket,[0 1 1]);
-invar=[];
-while ~strcmp(invar,'gotit')
-    invar = msrecv(masterSocket,0.01);
-end
 
 frame = max(data-bgd, 0);
 pos2 = imgaussfilt(frame, 2);

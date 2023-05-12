@@ -78,8 +78,8 @@ slmCoordsTemp = [[0.40 .40 0 1];...
                  [0.60 .40 0 1]];
                   
    
-DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
-disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
+% DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
+% disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
 [ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoordsTemp );
 Function_Feed_SLM( Setup.SLM, HoloTemp);
 disp('sent SLM')

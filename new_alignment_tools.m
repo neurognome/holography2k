@@ -14,12 +14,14 @@ Setup = function_loadparameters2();
 Setup.CGHMethod=2;
 Setup.GSoffset=0;
 Setup.verbose =0;
-Setup.useGPU =1;
+Setup.useGPU =0;
 Setup.SLM.is_onek = 1;
 
 if Setup.useGPU
+    parallel.gpu.enableCUDAForwardCompatibility(true) 
     disp('Getting gpu...'); %this can sometimes take a while at initialization
     g= gpuDevice;
+    
 end
 
 [Setup.SLM ] = Function_Stop_SLM( Setup.SLM );
@@ -71,11 +73,11 @@ disp('sent a blank phase')
 
 %% shoot single holo, no power control
 
-slmCoordsTemp = [0.45 0.45 -.025 1];
+slmCoordsTemp = [0.4 0.4 0 1];
 
 [ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(Setup, slmCoordsTemp);
-DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
-disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
+% DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
+% disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
 Function_Feed_SLM(Setup.SLM, HoloTemp);
 disp('sent SLM')
 

@@ -6,7 +6,7 @@ else
     
     if ~libisloaded('Blink_C_wrapper')
         if SLM.is_onek
-            loadlibrary('C:/Users/holography/Desktop/meadowlark/SDK/Blink_C_wrapper.dll', 'C:/Users/holography/Desktop/meadowlark/SDK/Blink_C_wrapper.h');
+            loadlibrary("C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.dll", "C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.h");
         else
             loadlibrary('Blink_C_wrapper.dll', 'Blink_C_wrapper.h');
         end

@@ -60,8 +60,8 @@ Setup.SLM.timeout_ms = 5000;
 % Setup.SLM.lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm5177_at1035.lut';%3/26/19 included
 % Setup.SLM.lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm5178_at1035.lut';%3/9/21 included
 % Setup.SLM.lut_file = 'C:\Users\Holography\Desktop\meadowlark\LUT Files\slm6257_at1035_1st_order.lut';%3/9/21 included
-Setup.SLM.lut_file = 'C:\Users\Holography\Desktop\meadowlark\LUT Files\slm6257_at1035_0th_order.lut';
-
+% Setup.SLM.lut_file = 'C:\Users\Holography\Desktop\meadowlark\LUT Files\slm6257_at1035_0th_order.lut';
+Setup.SLM.lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
 
 Setup.SLM.reg_lut = libpointer('string');
 Setup.SLM.true_frames = 3;
@@ -86,7 +86,7 @@ Setup.SLM.State =0;
 % Specify system for computation of hologramsparameters here
 Setup.verbose=1;           % 1 or 0    Set this value to 1 to display activity, 0 otherwise
 Setup.lambda = 1.03e-6;   % meters    Wavelength of the light
-Setup.focal_SLM = 0.15;     % meters    focal length of the telescope lens after slm.
+Setup.focal_SLM = 0.2;     % meters    focal length of the telescope lens after slm.
 
 
 
