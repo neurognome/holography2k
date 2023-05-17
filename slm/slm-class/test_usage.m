@@ -9,7 +9,7 @@ tBegin = tic;
 
 disp('Setting up stuff...');
 
-Setup = function_loadparameters2();
+Setup = function_loadparameters2k();
 Setup.CGHMethod=2;
 Setup.GSoffset=0;
 Setup.verbose =0;
@@ -25,6 +25,7 @@ end
 slm = MeadowlarkOneK();
 slm.stop();
 slm.start();
+Setup = slm.add_slm(Setup);
 
 disp('SLM Ready!')
 
@@ -37,13 +38,10 @@ disp('Basler Ready!')
 
 %% Basler preview
 
-bas.preview()
+% slmCoords = [0.45 0.45 0.052 1];
+slmCoords = [0.65 0.65 0.052 1];
 
-
-slmCoordsTemp = [0.4 0.4 0 1];
-
-Setup.SLM = slm.get_slm();
-[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(Setup, slmCoordsTemp);
+[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
 % DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
 slm.feed(HoloTemp);
@@ -53,3 +51,5 @@ figure(124)
 clf
 imagesc(HoloTemp)
 title('Hologram sent to SLM')
+
+bas.preview()

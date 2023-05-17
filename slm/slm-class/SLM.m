@@ -22,9 +22,18 @@ methods
     function out =  get_slm(obj)
         props = properties(obj);
         out = struct();
-        for p = props
+        for p = props'
             out.(p{:}) = obj.(p{:});
         end
+    end
+
+    function Setup = add_slm(obj, Setup)
+        Setup.SLM = obj.get_slm();
+        Setup.psSLM = obj.psSLM;
+        Setup.Nx = obj.Nx;
+        Setup.Ny = obj.Ny;
+        Setup.intensity = 1;
+        Setup.source = sqrt(Setup.intensity)*(1/(Setup.Nx* Setup.Ny))*ones(Setup.Nx, Setup.Ny);
     end
 end
 end

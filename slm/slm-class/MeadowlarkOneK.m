@@ -11,13 +11,14 @@ classdef MeadowlarkOneK < SLM
         timeout_ms = 5000;
         Nx = 1024
         Ny = 1024
+        psSLM = 17e-6;       % meters    SLM pixel dimensions
         wait_for_trigger = 0
         state = 0;
         pixelmax = 255;
         true_frames = 3;
 
         lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
-        reg_lu = libpointer('string');
+        reg_lut = libpointer('string');
     end
 
     methods
@@ -28,11 +29,7 @@ classdef MeadowlarkOneK < SLM
         function start(obj)
             if obj.state ~= 1
                 if ~libisloaded('Blink_C_wrapper')
-                    if SLM.is_onek
-                        loadlibrary("C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.dll", "C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.h");
-                    else
-                        loadlibrary('Blink_C_wrapper.dll', 'Blink_C_wrapper.h');
-                    end
+                    loadlibrary("C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.dll", "C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK\Blink_C_wrapper.h");
                 end
 
                 calllib('Blink_C_wrapper', 'Create_SDK', obj.bit_depth, obj.num_boards_found, obj.constructed_okay, obj.is_nematic_type, obj.RAM_write_enable, obj.use_GPU, obj.max_transients, obj.reg_lut);
@@ -75,7 +72,7 @@ classdef MeadowlarkOneK < SLM
         end
 
         function out = feed(obj, frame)
-            calllib('Blink_C_wrapper', 'Write_image', 1, frame, obj.Nx*obj.Ny, obj.wait_For_trigger,0, 1, 0, obj.timeout_ms);
+            calllib('Blink_C_wrapper', 'Write_image', 1, frame, obj.Nx*obj.Ny, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
             out = calllib('Blink_C_wrapper', 'ImageWriteComplete', 1, obj.timeout_ms);
         end
     end

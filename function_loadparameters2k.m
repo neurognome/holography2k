@@ -103,7 +103,7 @@ NormOptions.LowThreshold = 0.1;
 %Specify Illumination pattern at the SLM, Uniform here, but tunable in
 %general.
 Setup.intensity = 1;
-Setup.source = sqrt(Setup.intensity)*(1/(Setup.Nx* Setup.Ny))*ones(Setup.Nx, Setup.Ny);
+% Setup.source = sqrt(Setup.intensity)*(1/(Setup.Nx* Setup.Ny))*ones(Setup.Nx, Setup.Ny);
 
 Setup.Datapath = 'Calib_Data';
 Setup.Displaypath = 'Calib_Displays';
