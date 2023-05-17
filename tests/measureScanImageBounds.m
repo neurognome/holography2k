@@ -9,7 +9,7 @@ tBegin = tic;
 
 disp('Setting up stuff...');
 
-makePaths2()
+makePaths()
 
 Setup = function_loadparameters2();
 Setup.CGHMethod=2;
@@ -67,7 +67,7 @@ clf
 imagesc(data)
 colorbar
 %%
-thresh = 4;
+thresh = 1;
 
 figure(2)
 clf
@@ -93,16 +93,17 @@ p=plot(SIxboundary,SIyboundary,'r');
 %% find holo on plane
 
 pwr = 10;
-slmCoords = [0.6 0.6 -0.035 1];
-
+x = linspace(.2, .8, 2);
+[x, y] = meshgrid(x, x);
+slmCoords = [x(:), y(:), x(:)*0+0.052, x(:)*0+1];
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 
-DEestimate = DEfromSLMCoords(slmCoords);
-disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
-
+% DEestimate = DEfromSLMCoords(slmCoords);
+% disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
+DEestimate=1;
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
 Function_Feed_SLM(Setup.SLM, Holo);
-mssend(masterSocket, [pwr/1000 1 1]);
+% mssend(masterSocket, [pwr/1000 1 1]);
 
 
 f = figure('Name','Basler Preview', 'NumberTitle','off');
@@ -118,7 +119,7 @@ while isgraphics(f)
 end
 
 
-mssend(masterSocket, [0 1 1]);
+% mssend(masterSocket, [0 1 1]);
 
 
 

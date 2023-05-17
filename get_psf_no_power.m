@@ -39,7 +39,7 @@ bas.preview()
 %% set power levels
 
 % highly dependent on previous/current power calibration and alignment
-% generally expect 10 mW for full power, 50 mW 10x divided mode, and 70 mW
+% gdataUZenerally expect 10 mW for full power, 50 mW 10x divided mode, and 70 mW
 % at 100x divided mode
 %
 % put a hologram near the zero-order and set power so that it is roughly
@@ -49,7 +49,10 @@ bas.preview()
 % scaled for multi-target holograms and hole-burning
 
 pwr = 10;
-slmCoords = [.4 .4 0 1];
+slmCoords = [0.7 0.7 0.052 1];
+% x = linspace(.3, .7, 3);
+% [x, y] = meshgrid(x, x);
+% slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])

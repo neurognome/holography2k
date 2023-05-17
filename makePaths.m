@@ -14,7 +14,7 @@ function makePaths()
 % addpath(genpath('C:\Users\Holography\Desktop\meadowlark'));
 % 
 % disp('done pathing!')
-rt = 'C:\Users\holos\Documents\GitHub\holography\';
+rt = 'C:\Users\holos\Documents\GitHub\holography2k\';
 cd(rt)
-addpath(genpath('C:\Users\holos\Documents\GitHub\holography'));
+addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'));
 addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus'));
