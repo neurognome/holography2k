@@ -1,5 +1,8 @@
 classdef SLM < handle
 properties
+    Nx
+    Ny
+    psSLM
     % lut_file
     % reg_lut
     % true_frames
@@ -19,7 +22,7 @@ methods
     function feed(obj)
     end
 
-    function out =  get_slm(obj)
+    function out =  get_slm_parameters(obj)
         props = properties(obj);
         out = struct();
         for p = props'
@@ -28,7 +31,7 @@ methods
     end
 
     function Setup = add_slm(obj, Setup)
-        Setup.SLM = obj.get_slm();
+        Setup.SLM = obj.get_slm_parameters();
         Setup.psSLM = obj.psSLM;
         Setup.Nx = obj.Nx;
         Setup.Ny = obj.Ny;

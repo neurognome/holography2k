@@ -25,7 +25,6 @@ end
 slm = MeadowlarkOneK();
 slm.stop();
 slm.start();
-Setup = slm.add_slm(Setup);
 
 disp('SLM Ready!')
 
@@ -37,11 +36,10 @@ bas.start()
 disp('Basler Ready!')
 
 %% Basler preview
-
 % slmCoords = [0.45 0.45 0.052 1];
 slmCoords = [0.65 0.65 0.052 1];
 
-[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
+[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(slm.add_sm(Setup), slmCoords);
 % DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
 slm.feed(HoloTemp);

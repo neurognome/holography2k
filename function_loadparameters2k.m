@@ -33,17 +33,17 @@ else
     Setup.Holodaq.DAQReady=0;
 end
 
-Setup.SLM.is_onek = 1; %new from Hayley for 9/6/2022, to enable new setup for 1k
+% Setup.SLM.is_onek = 1; %new from Hayley for 9/6/2022, to enable new setup for 1k
 
 Setup.BaslerCameraID =0;
 
 Setup.CGHMethod = 3; % Select 1 for superoposition, 2 for GGS, 3 for novocgh, 4 for 2P NovoCGH
 
-if Setup.SLM.is_onek
-    Setup.SLM.bit_depth = 12; %For the 512L bit depth is 16, for the small 512 bit depth is 8
-else 
-     Setup.SLM.bit_depth = 8;
-end
+% if Setup.SLM.is_onek
+%     Setup.SLM.bit_depth = 12; %For the 512L bit depth is 16, for the small 512 bit depth is 8
+% else 
+%      Setup.SLM.bit_depth = 8;
+% end
 % Setup.SLM.num_boards_found = libpointer('uint32Ptr', 0);
 % Setup.SLM.constructed_okay = libpointer('int32Ptr', 0);
 % Setup.SLM.is_nematic_type = 1;
