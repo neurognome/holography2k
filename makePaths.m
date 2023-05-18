@@ -18,6 +18,4 @@ rt = 'C:\Users\holos\Documents\GitHub\holography2k\';
 cd(rt)
 addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'));
 addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus'));
-disp('update me in makepaths.m!')
-addpath(genpath('C:\Users\holos\Documents\'))
-add_heds_path
+addpath(genpath('C:\Program Files\HOLOEYE Photonics\SLM Display SDK (MATLAB) v1.1.1\win64'))

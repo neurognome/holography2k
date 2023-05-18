@@ -9,9 +9,6 @@ classdef MeadowlarkOneK < SLM
         max_transients = 10
         external_pulse = 1;
         timeout_ms = 5000;
-        Nx = 1024
-        Ny = 1024
-        psSLM = 17e-6;       % meters    SLM pixel dimensions
         wait_for_trigger = 0
         state = 0
         pixelmax = 255
@@ -24,6 +21,9 @@ classdef MeadowlarkOneK < SLM
     methods
         function obj = MeadowlarkOneK()
             obj = obj@SLM();
+            obj.Nx = 1024;
+            obj.Ny = 1024;
+            obj.psSLM = 17e-6;       % meters    SLM pixel dimensions
         end
 
         function start(obj)

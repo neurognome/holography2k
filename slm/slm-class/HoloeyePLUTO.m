@@ -4,9 +4,6 @@ classdef HoloeyePLUTO < SLM
         % max_transients = 10
         % external_pulse = 1;
         timeout_ms = 5000;
-        Nx = 1920
-        Ny = 1080
-        psSLM = 8e-6;       % meters    SLM pixel dimensions
         wait_for_trigger = 0
         state = 0;
         pixelmax = 255;
@@ -19,6 +16,9 @@ classdef HoloeyePLUTO < SLM
     methods
         function obj = HoloeyePLUTO()
             obj = obj@SLM();
+            obj.Nx = 1080;
+            obj.Ny = 1920;
+            obj.psSLM = 8e-6;
         end
 
         function start(obj)
@@ -37,14 +37,14 @@ classdef HoloeyePLUTO < SLM
             heds_close_slm;
         end
 
-        function feed(obj, frame)
+        function out = feed(obj, frame)
             data_handle = heds_load_data(frame);
             if ~isempty(obj.lut)
                 % apply LUT if exists
                 heds_datahandle_set_lookuptable(data_handle, obj.lut);
             end
             % show the hologram
-            heds_show_datahandle(data_handle);
+            out = heds_show_datahandle(data_handle.id);
         end
     end
 end

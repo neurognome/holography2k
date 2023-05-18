@@ -22,9 +22,13 @@ if Setup.useGPU
     
 end
 
-slm = MeadowlarkOneK();
-slm.stop();
-slm.start();
+slm1 = HoloeyePLUTO();
+slm1.stop();
+slm1.start();
+
+slm2 = MeadowlarkOneK();
+slm2.stop();
+slm2.start();
 
 disp('SLM Ready!')
 
@@ -37,17 +41,38 @@ disp('Basler Ready!')
 
 %% Basler preview
 % slmCoords = [0.45 0.45 0.052 1];
-slmCoords = [0.65 0.65 0.052 1];
+slmCoords = [0.8 0.8 0.02 1];
 
-[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(slm.add_slm(Setup), slmCoords);
+[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(slm1.add_slm(Setup), slmCoords);
 % DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
-slm.feed(HoloTemp);
+slm1.feed(HoloTemp);
 disp('sent SLM')
 
 figure(124)
 clf
 imagesc(HoloTemp)
-title('Hologram sent to SLM')
+title('Hologram sent to SLM 1')
 
+
+slmCoords = [0.45 0.45 0.052 1];
+
+[ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(slm2.add_slm(Setup), slmCoords);
+% DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
+% disp(['Diffraction Estimate for this spot is: ' num2str(DEestimateTemp)])
+slm2.feed(HoloTemp);
+disp('sent SLM')
+
+figure(124)
+clf
+imagesc(HoloTemp)
+title('Hologram sent to SLM 2')
+bas.preview()
+
+
+%%
+
+blankHolo = zeros([slm.Ny slm.Nx]);
+slm.feed(blankHolo);
+disp('sent a blank phase')
 bas.preview()
