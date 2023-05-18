@@ -29,6 +29,7 @@ if Setup.useGPU
     g= gpuDevice;
 end
 
+%-- replace this
 [Setup.SLM ] = Function_Stop_SLM( Setup.SLM );
 [ Setup.SLM ] = Function_Start_SLM( Setup.SLM );
 
@@ -297,10 +298,12 @@ disp([num2str(sum(~isnan(SIpeakDepth), 'all')) ' points remaining'])
 
 %% CamToOpt
 % refactor me!
-modelterms =[0 0 0; 1 0 0; 0 1 0; 0 0 1;...
-    1 1 0; 1 0 1; 0 1 1; 1 1 1; 2 0 0; 0 2 0; 0 0 2;...
-    2 0 1; 2 1 0; 0 2 1; 0 1 2; 1 2 0; 1 0 2;...
-     2 2 0; 2 0 2; 0 2 2; 2 1 1; 1 2 1; 1 1 2; ];  %XY spatial calibration model for Power interpolations
+modelterms =[0 0 0;
+            1 0 0; 0 1 0; 0 0 1; 1 1 0; 1 0 1; 0 1 1; 1 1 1;...
+            2 0 0; 0 2 0; 0 0 2;...
+            2 0 1; 2 1 0; 0 2 1; 0 1 2; 1 2 0; 1 0 2;...
+            2 2 0; 2 0 2; 0 2 2;...
+            2 1 1; 1 2 1; 1 1 2; ];  %XY spatial calibration model for Power interpolations
 
 nOpt = numel(optotunePlanes);
 camXYZ(1:2,:) =  repmat(XYSI,[1 nOpt]);
