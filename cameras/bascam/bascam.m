@@ -56,11 +56,7 @@ classdef bascam < handle
             end
         end
 
-        function bgpreview(obj)
-            parfeval(backgroundPool, @obj.preview);
-        end
-        
-        function preview(obj)
+        function custompreview(obj)
             f = figure('Name','Basler Preview', 'NumberTitle','off');
             f.Position = [817 712 1000 800];
             movegui(f, 'center')

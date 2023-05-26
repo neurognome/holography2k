@@ -3,6 +3,7 @@ classdef AlignOptotune < handle
         optotunePlanes = 0:5:75
         sutterPlanes = -25:5:150
         nframesCapture = 5
+        gridpts = 25
         
         SISocket
         masterSocket
@@ -18,17 +19,17 @@ classdef AlignOptotune < handle
             obj.bas = bas;
         end
 
-        function getBackground(obj, nFrames)
+        function bgd = getBackground(obj, nFrames)
             bgd_frames = obj.bas.grab(nFrames);
             bgd = mean(bgd_frames, 3);
         end
 
-        function [camXYZ, camPower] = doFits(obj, SIdepthImages)
-            gridpts = 25;
+        function SIfits = doFits(obj, SIdepthImages)
             range = 15;
             c=0;
-            for i=1:gridpts
-                for k=1:gridpts
+
+            for i=1:obj.gridpts
+                for k=1:obj.gridpts
                     c=c+1;
                     dimx(:,c) = xs(i)-range:xs(i)+range;
                     dimy(:,c) = ys(k)-range:ys(k)+range;
@@ -45,10 +46,12 @@ classdef AlignOptotune < handle
 
             SIfits = extractScanImageFits(SIVals, obj.optotunePlanes, obj.sutterPlanes);
             SIfits = obj.excludeValues(SIfits);
-            SIpeakVal = SIfits.SIpeakVal;
-            SIpeakDepth = SIfits.SIpeakDepth;
-           
+        end
 
+        function XYSI = getXYSI(obj, gridpts)
+            if nargin < 2 || isempty(gridpts)
+                gridpts = obj.gridpts;
+            end
             xs = round(linspace(1,sz(1),gridpts+2));
             ys = round(linspace(1,sz(2),gridpts+2));
             xs([1 end])=[];
@@ -56,7 +59,62 @@ classdef AlignOptotune < handle
 
             [X,Y] = meshgrid(xs, ys);
             XYSI = [X(:) Y(:)]';
-            camXYZ(1:2, :) = repmat()
+        end
+
+
+        function getOpto2Cam(obj, SIfits)
+            SIpeakVal = SIfits.SIpeakVal;
+            SIpeakDepth = SIfits.SIpeakDepth;
+
+            XYSI = obj.getXYSI();
+            cam2XYZ(1:2,:) =  repmat(XYSI,[1 nOpt]);
+            cam2XYZ(3,:) =  optZ(:);
+            camPower = SIpeakVal(:);
+            nGrids = size(SIVals, 2);
+
+            optZ = repmat(app.optotunePlanes, [nGrids, 1]);
+            optZ = optZ(:);
+
+ 
+            obsZ =  SIpeakDepth(:);
+
+            testSet = randperm(numel(obsZ),50);
+            otherSet = ones([numel(obsZ) 1]);
+            otherSet(testSet)=0;
+            otherSet = logical(otherSet);
+
+            refAsk = (cam2XYZ(1:3,otherSet))';
+            refGet = obsZ(otherSet);
+
+            OptZToCam =  polyfitn(refAsk,refGet,modelterms);
+        end
+
+        function getCam2Opto(obj, SIfits)
+            SIpeakVal = SIfits.SIpeakVal;
+            SIpeakDepth = SIfits.SIpeakDepth;
+
+            XYSI = obj.getXYSI();
+            camXYZ(1:2, :) = repmat(XYSI, [1 numel(app.optotunePlanes)]);
+            camXYZ(3, :) = SIpeakDepth;
+
+            camPower = SIpeakVal(:);
+            nGrids = size(SIVals, 2);
+
+            optZ = repmat(app.optotunePlanes, [nGrids, 1]);
+            optZ = optZ(:);
+
+            % split into test and train and fit
+            testSet = randperm(numel(optZ),50);
+
+            otherSet = ones([numel(optZ) 1]);
+            otherSet(testSet)=0;
+            otherSet = logical(otherSet);
+            
+            refAsk = (camXYZ(1:3,otherSet))';
+            refGet = optZ(otherSet);
+            
+            camToOpto =  polyfitn(refAsk,refGet,modelterms);
+            CoC.camToOpto = camToOpto;
         end
 
         function SIfits = excludeValues(SIfits)
@@ -100,7 +158,6 @@ classdef AlignOptotune < handle
                     invar = msrecv(obj.SISocket,0.01);
                 end
             end
-
             mssend(obj.SISocket,'end');
         end
 
