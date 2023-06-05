@@ -95,7 +95,7 @@ p=plot(SIxboundary,SIyboundary,'r');
 pwr = 10;
 x = linspace(.2, .8, 2);
 [x, y] = meshgrid(x, x);
-slmCoords = [x(:), y(:), x(:)*0+0.052, x(:)*0+1];
+slmCoords = [x(:), y(:), x(:)*0+0.025, x(:)*0+1];
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 
 % DEestimate = DEfromSLMCoords(slmCoords);

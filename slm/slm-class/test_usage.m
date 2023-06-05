@@ -55,7 +55,7 @@ imagesc(HoloTemp)
 title('Hologram sent to SLM 1')
 
 
-slmCoords = [0.45 0.45 0.052 1];
+slmCoords = [0.45 0.45 0.020 1];
 
 [ HoloTemp,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos(slm2.add_slm(Setup), slmCoords);
 % DEestimateTemp = DEfromSLMCoords(slmCoordsTemp); %
@@ -72,7 +72,7 @@ bas.preview()
 
 %%
 
-blankHolo = zeros([slm.Ny slm.Nx]);
-slm.feed(blankHolo);
+blankHolo = zeros([slm2.Ny slm2.Nx]);
+slm2.feed(blankHolo);
 disp('sent a blank phase')
 bas.preview()

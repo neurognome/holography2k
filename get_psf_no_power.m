@@ -14,7 +14,7 @@ Setup = function_loadparameters2();
 Setup.CGHMethod = 2;
 Setup.GSoffset = 0;
 Setup.verbose = 0;
-Setup.useGPU = 0;
+Setup.useGPU = 1;
 Setup.SLM.is_onek = 1;
 
 if Setup.useGPU
@@ -49,7 +49,7 @@ bas.preview()
 % scaled for multi-target holograms and hole-burning
 
 pwr = 10;
-slmCoords = [0.7 0.7 0.052 1];
+slmCoords = [0.45 0.45 0.020 1];
 % x = linspace(.3, .7, 3);
 % [x, y] = meshgrid(x, x);
 % slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];

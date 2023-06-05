@@ -26,9 +26,9 @@ tBegin = tic;
 % addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\CameraFunctions\'));
 % addpath(genpath('C:\Users\Holography\Desktop\holography'));
 % 
-% makePaths()
-addpath(genpath('C:\Users\Holography\Desktop\holography\'))
-addpath(genpath('C:\Users\Holography\Desktop\meadowlark\'))
+makePaths()
+% addpath(genpath('C:\Users\Holography\Desktop\holography\'))
+% addpath(genpath('C:\Users\Holography\Desktop\meadowlark\'))
 disp('done pathing')
 
 %% Setup Stuff
@@ -38,7 +38,7 @@ disp('Setting up stuff...');
 Setup.CGHMethod=2;
 Setup.GSoffset=0;
 Setup.verbose =0;
-Setup.useGPU =1;
+Setup.useGPU = 0;
 
 Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
@@ -83,7 +83,7 @@ function_BasPreview(Setup);
 %run this first then code on daq
 disp('Waiting for msocket communication From DAQ')
 %then wait for a handshake
-srvsock = mslisten(42120);
+srvsock = mslisten(42122);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -126,13 +126,13 @@ disp('communication from Master To SI Established');
 
 %% Set Power Levels
 
-pwr = 10; %updated 3/10/21 for 2 MHz % something like this for 100 divided mode 9/22/20 %40; %13 at full; 50 at 15 divided %70 mW at 100 divided mode 10-29-19
+pwr = 1.15; 
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 %%
 disp('Find the spot and check if this is the right amount of power')
-slmCoords = [.4 .4 -.01 1];%[0.45 0.45 0 1];
-DEestimate = DEfromSLMCoords(slmCoords); %
-disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
+slmCoords = [.4 .6 0.025 1];
+% DEestimate = DEfromSLMCoords(slmCoords); %
+% disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
 [ Holo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -188,7 +188,7 @@ moveTime=moveTo(Sutter.obj,position);
 tManual = toc(tBegin);
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 1;
+reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
  
 if ~reloadHolos
@@ -197,17 +197,17 @@ if ~reloadHolos
     
     npts = 250; %You can almost get through 750 with water before it evaporates.
     
-    RX = 0.4;
-    RY = 0.4;
+    % RX = 0.4;
+    % RY = 0.4;
     
     %ranges set by exploration moving holograms looking at z1 fov.
     %updated 3/10/21 (new SLM)
-    slmXrange = [0.05 0.98];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-    slmYrange = [0.05 0.98];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
+    slmXrange = [0.13 0.75];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+    slmYrange = [0.17 0.84];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
     
     % set Z range
 %     slmZrange =[-.08 -0.02];
-    slmZrange = [-0.007 -0.035];
+    slmZrange = [0.015 0.095];
     % 12/29/22 WH - should be roughly +145 um (-0.04 SLM) to -30 um (0.025 SLM)
  
     %3/11/21 IO.  %%[-0.02 0.07];%9/19/19 % [-0.1 0.15];
@@ -236,16 +236,16 @@ if ~reloadHolos
     
     disp('Compiling Holograms...')
     t = tic;
-    try
-        [ multiHolo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords' );
-        multiPts = npts;
-    catch
-        multiPts = 100;%round(npts/2);
-        disp('Could not create multi holo, trying with fewer points')
-        [ multiHolo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords(:,1:multiPts));
-    end
-    fprintf(['Multi target Holo took ' num2str(toc(t)) 's\n'])
-    multiCompileT = toc(t);
+    % try
+    %     [ multiHolo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords' );
+    %     multiPts = npts;
+    % catch
+    %     multiPts = 100;%round(npts/2);
+    %     disp('Could not create multi holo, trying with fewer points')
+    %     [ multiHolo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords(:,1:multiPts));
+    % end
+    % fprintf(['Multi target Holo took ' num2str(toc(t)) 's\n'])
+    % multiCompileT = toc(t);
     
     % querry = input('do you want to check the range of the holos. turn off blasting then (1 yes, 0 no)');
     %
@@ -279,7 +279,7 @@ if ~reloadHolos
     
     out.hololist = hololist;
     out.slmCoords = slmCoords;
-    out.multiHolo = multiHolo;
+    % out.multiHolo = multiHolo;
     save('tempHololist4_will.mat','out');
 else
     disp('Reloading old Holograms...')
@@ -293,7 +293,7 @@ else
     hololist = out.hololist;
     slmCoords = out.slmCoords;
     npts = size(slmCoords,2);
-    multiHolo = out.multiHolo;
+    % multiHolo = out.multiHolo;
     figure(273);scatter3(slmCoords(1,:),slmCoords(2,:),slmCoords(3,:),'o')
         title('Pre Loaded Holograms in SLM space')
     
@@ -340,7 +340,7 @@ clear SIdepthData
 
 zsToUse = linspace(0,70,15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
 
-SIUZ = -15:5:130;% linspace(-120,200,SIpts);
+SIUZ = 15:-5:-130; % -15:5:130;% linspace(-120,200,SIpts);
 SIpts = numel(SIUZ);
 
 %generate xy grid
@@ -484,10 +484,10 @@ disp('Fitting optotune to Camera... extracting optotune depths')
 
 
 out.SIVals =SIVals;
-out.XYSI =XYSI;
-out.zsToUse =zsToUse;
+out.XYSI = XYSI;
+out.zsToUse = zsToUse;
 out.SIUZ = SIUZ;
-nGrids =size(SIVals,2);
+nGrids = size(SIVals,2);
 nOpt = size(zsToUse,2);
 fastWay = 1;
 
@@ -532,7 +532,7 @@ SIpeakDepth = b2;
 % hist(SIpeakVal)
 SIThreshHold =1.5*stdBgd/sqrt(nBackgroundFrames + framesToAcquire);
 %  SIThreshHold = 0.6;
-excl = SIpeakVal<SIThreshHold;%changed to reflect difference better.\
+excl = SIpeakVal< SIThreshHold;%changed to reflect difference better.\
 % excl = SIpeakVal<SIThreshHold;
 
 disp([num2str(numel(SIpeakDepth)) ' points total before exclusions'])
@@ -550,7 +550,7 @@ disp([num2str(sum(excl(:))) ' points excluded b/c too deep'])
 SIpeakVal(excl)=nan;
 SIpeakDepth(excl)=nan;
 disp([num2str(sum(~isnan(SIpeakDepth), 'all')) ' points remaining'])
-
+            
 
 %%CamToOpt
 modelterms =[0 0 0; 1 0 0; 0 1 0; 0 0 1;...

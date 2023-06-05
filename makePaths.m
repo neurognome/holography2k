@@ -17,5 +17,6 @@ function makePaths()
 rt = 'C:\Users\holos\Documents\GitHub\holography2k\';
 cd(rt)
 addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'));
+addpath(genpath('C:\Users\holos\Documents\GitHub\msocket'));
 addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus'));
 addpath(genpath('C:\Program Files\HOLOEYE Photonics\SLM Display SDK (MATLAB) v1.1.1\win64'))

@@ -185,7 +185,7 @@ classdef sutterMP285 < serial
 
             % the value of STEP_MUL ("Multiplier yields msteps/nm") is at bytes 25 & 26
             stepMult=double(statusbytes(26))*256+double(statusbytes(25));
-            
+            stepMult = 25; % Temp 05Jun2023 KKS
             % the value of "XSPEED"  and scale factor is at bytes 29 & 30
             if statusbytes(30) > 127
                 vScaleFactor = 50;
