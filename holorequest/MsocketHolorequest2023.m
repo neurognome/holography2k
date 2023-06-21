@@ -1,7 +1,7 @@
 timeout = 1700;
 
-addpath(genpath('C:\Users\Holography\Desktop\holography'))
-addpath(genpath('C:\Users\Holography\Desktop\meadowlark'))
+addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
+addpath(genpath('C:\Users\holos\Desktop\meadowlark'))
 
 Setup = function_loadparameters3();
 Setup.CGHMethod = 2; % now defaults to GSS
@@ -14,7 +14,7 @@ cycleiterations = 1; % Change this number to repeat the sequence N times instead
 Setup.TimeToPickSequence = 0.05;    %second window to select sequence ID
 Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 % calibID = 1;                        % Select the calibration ID (z1=1 but does not exist, Z1.5=2, Z1 sutter =3);
-Setup.calib = 'C:\Users\Holography\Desktop\calibs\ActiveCalib.mat';
+Setup.calib = 'C:\Users\holos\Documents\calibs\ActiveCalib.mat';
 
 disp('Loading current calibration...')
 load(Setup.calib,'CoC');
@@ -23,7 +23,7 @@ disp(['Successfully loaded CoC from: ', Setup.calib])
  
 disp('Waiting for msocket communication')
 
-srvsock = mslisten(42118); %3027
+srvsock = mslisten(42119); %3027
 masterSocket = msaccept(srvsock,6);
 msclose(srvsock)
 sendVar = 'A';

@@ -130,7 +130,7 @@ pwr = 1.15;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 %%
 disp('Find the spot and check if this is the right amount of power')
-slmCoords = [.4 .6 0.025 1];
+slmCoords = [.4 .6 0.03 1]; % 0.03 aligend, -0.045 is 120 above, 0.045 is 20 below
 % DEestimate = DEfromSLMCoords(slmCoords); %
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
@@ -177,7 +177,7 @@ disp('Scanimage should be idle, nearly in plane with focus. and with the gain se
 disp('THE MOUSE MONITOR SHOULD BE TURNED OFF')
 
 position = Sutter.Reference;
-position(3) = position(3) + 100;
+position(3) = position(3) - 100;
 moveTime=moveTo(Sutter.obj,position);
 disp('testing the sutter double check that it moved to reference +100');
 temp = input('Ready to go (Press any key to continue)');
@@ -206,8 +206,7 @@ if ~reloadHolos
     slmYrange = [0.17 0.84];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
     
     % set Z range
-%     slmZrange =[-.08 -0.02];
-    slmZrange = [0.015 0.095];
+    slmZrange = [-0.045 0.045];
     % 12/29/22 WH - should be roughly +145 um (-0.04 SLM) to -30 um (0.025 SLM)
  
     %3/11/21 IO.  %%[-0.02 0.07];%9/19/19 % [-0.1 0.15];
@@ -234,8 +233,8 @@ if ~reloadHolos
 
     
     
-    disp('Compiling Holograms...')
-    t = tic;
+    % disp('Compiling Holograms...')
+    % t = tic;
     % try
     %     [ multiHolo,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,slmCoords' );
     %     multiPts = npts;
@@ -246,9 +245,9 @@ if ~reloadHolos
     % end
     % fprintf(['Multi target Holo took ' num2str(toc(t)) 's\n'])
     % multiCompileT = toc(t);
-    
+    % 
     % querry = input('do you want to check the range of the holos. turn off blasting then (1 yes, 0 no)');
-    %
+    % 
     % if querry ==1
     %      %%Check Range of multi holo
     %  disp('Starting with shutter closed, will display multiHolo. check that the range is appropriate on the basler');
@@ -279,7 +278,7 @@ if ~reloadHolos
     
     out.hololist = hololist;
     out.slmCoords = slmCoords;
-    % out.multiHolo = multiHolo;
+    out.multiHolo = multiHolo;
     save('tempHololist4_will.mat','out');
 else
     disp('Reloading old Holograms...')
@@ -340,7 +339,7 @@ clear SIdepthData
 
 zsToUse = linspace(0,70,15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
 
-SIUZ = 15:-5:-130; % -15:5:130;% linspace(-120,200,SIpts);
+SIUZ = -15:5:130;% linspace(-120,200,SIpts);
 SIpts = numel(SIUZ);
 
 %generate xy grid
@@ -395,8 +394,8 @@ for k =1:numel(zsToUse)
         
         currentPosition = getPosition(Sutter.obj);
         position = Sutter.Reference;
-        position(3) = position(3) + (SIUZ(i));
-        diff = currentPosition(3)-position(3);
+        position(3) = position(3) - (SIUZ(i)); % edtied for backwards sutter
+        diff = currentPosition(3) - position(3);
         %           tic;
         moveTime=moveTo(Sutter.obj,position);
         %           toc;
@@ -446,9 +445,10 @@ for k =1:numel(zsToUse)
     for hbtmpi=1:numel(SIUZ)
         subplot(6,6,hbtmpi); colorbar;
         imagesc(dataUZ(:,:,hbtmpi));
+        title(SIUZ(hbtmpi))
     end
-    pause(.5)
-    
+    drawnow()
+
     for i =1:c
 %         temp = dataUZ(dimx(:,i),dimy(:,i),:);
 %         SIVals(:,i,k) = mean(temp(:));
@@ -466,6 +466,7 @@ mssend(SISocket,'end');
 
 disp(['Scanimage calibration done whole thing took ' num2str(toc(tSI)) 's']);
 siT=toc(tSI);
+
 
 %%
 tFits=tic;
@@ -493,17 +494,17 @@ fastWay = 1;
 
 clear SIpeakVal SIpeakDepth
 fprintf('Extracting point: ')
-parfor i=1:nGrids
+for i=1:nGrids
     for k=1:nOpt
         if fastWay
             [a, b] = max(SIVals(:,i,k));
             SIpeakVal(i,k)=a;
-            SIpeakDepth(i,k) =SIUZ(b);
+            SIpeakDepth(i,k) = SIUZ(b);
         else
             try
                 ff = fit(SIUZ', SIVals(:,i,k), 'gauss1');
-                SIpeakVal(i,k) =ff.a1;
-                SIpeakDepth(i,k) =ff.b1;
+                SIpeakVal(i,k) = ff.a1;
+                SIpeakDepth(i,k) = ff.b1;
             catch
                 SIpeakVal(i,k) = nan;
                 SIpeakDepth(i,k) = nan;
@@ -530,7 +531,7 @@ SIpeakDepth = b2;
 
 % figure
 % hist(SIpeakVal)
-SIThreshHold =1.5*stdBgd/sqrt(nBackgroundFrames + framesToAcquire);
+SIThreshHold = 1.5 * stdBgd/sqrt(nBackgroundFrames + framesToAcquire);
 %  SIThreshHold = 0.6;
 excl = SIpeakVal< SIThreshHold;%changed to reflect difference better.\
 % excl = SIpeakVal<SIThreshHold;
@@ -544,7 +545,8 @@ excl = SIpeakVal>255;
 % SIpeakVal(excl)=nan;
 % SIpeakDepth(excl)=nan;
 
-excl = SIpeakDepth<-10 | SIpeakDepth>130; %upper bound added 7/15/2020 -Ian
+excl = SIpeakDepth<-15 | SIpeakDepth>130; %upper bound added 7/15/2020 -Ian
+% excl = SIpeakDepth<-130 | SIpeakDepth>10; %upper bound added 7/15/2020 -Ian
 
 disp([num2str(sum(excl(:))) ' points excluded b/c too deep'])
 SIpeakVal(excl)=nan;
@@ -689,7 +691,10 @@ c.Label.String = 'Depth \mum';
 axis square
 
 subplot(2,2,2)
-scatter3(cam2XYZ(1,:),cam2XYZ(2,:),cam2XYZ(3,:),[],polyvaln(OptZToCam,cam2XYZ(1:3,:)'),'filled');
+% scatter3(cam2XYZ(1,:),cam2XYZ(2,:),cam2XYZ(3,:), [], polyvaln(OptZToCam,cam2XYZ(1:3,:)'),'filled');
+vals = polyvaln(OptZToCam,cam2XYZ(1:3,:)');
+is_badval = vals < -130;
+scatter3(cam2XYZ(1,~is_badval),cam2XYZ(2,~is_badval),cam2XYZ(3,~is_badval), [], vals(~is_badval), 'filled');
 ylabel('Y Axis pixels')
 xlabel('X axis pixels')
 zlabel('Z axis Optotune Units')
@@ -788,7 +793,7 @@ for i = 1:numel(coarseUZ)
     
     currentPosition = getPosition(Sutter.obj);
     position = Sutter.Reference;
-    position(3) = position(3) + (coarseUZ(i));
+    position(3) = position(3) - (coarseUZ(i)); % edited for backwards sutter
     diff = currentPosition(3)-position(3);
     moveTime=moveTo(Sutter.obj,position);
     
@@ -887,7 +892,7 @@ zDepthVal = coarseUZ(coarseZidx);
 zdepths = unique(zDepthVal);
 n_planes = numel(zdepths);
 
-coarseInclusionThreshold = 3*stdBgd/sqrt(numFramesCoarseHolo + nBackgroundFrames); %inclusion threshold added based on frames acquired; more stringent then SI. Added 7/16/2020 -Ian
+coarseInclusionThreshold = 2*stdBgd/sqrt(numFramesCoarseHolo + nBackgroundFrames); %inclusion threshold added based on frames acquired; more stringent then SI. Added 7/16/2020 -Ian
 zDepthVal(coarseVal<coarseInclusionThreshold)=NaN;
 
 xyzLoc = [xyLoc;zDepthVal]; %fix this later (?)
@@ -1020,9 +1025,9 @@ disp(['Done. Took ' num2str(toc(holo_time)) 's'])
 
 disp(['took ' num2str(toc(targ_time)) 's to compile multi target holos']) 
 
-out.hololist = hololist;
-out.slmCoords = slmCoords;
-out.multiHolo = multiHolo;
+% out.hololist = hololist;
+% out.slmCoords = slmCoords;
+% out.multiHolo = multiHolo;
 %save('tempHololist4_will_multi.mat','out');
 
 %%
@@ -1034,7 +1039,7 @@ box_range = 20; % 7/15/20 changed from 50 to 20 distance threshold is set to 50,
 disp('shootin!')
 % for every  plane
 
-for i = 1:planes%1:planes
+for i = 1:planes
     plane_time = tic;
     holos_this_plane = numel(slmMultiCoordsIndiv{i});
    
@@ -1068,7 +1073,7 @@ for i = 1:planes%1:planes
             % move the sutter
             currentPosition = getPosition(Sutter.obj);
             position = Sutter.Reference;
-            position(3) = position(3) + (fineUZ(k));
+            position(3) = position(3) - (fineUZ(k)); % ewdtied for bakcwards sutter
             diff = currentPosition(3)-position(3);
             moveTime=moveTo(Sutter.obj,position);
 
@@ -1131,7 +1136,7 @@ for i = 1:planes%1:planes
                 % method 1 - rely on XY from first step
                 targ_stack = double(squeeze(max(max(dataUZ(targX,targY,:)))));
                 mxProj = max(dataUZ(targX,targY,:),[],3);
-                [ holo_x,holo_y ] =function_findcenter(mxProj );
+                [ holo_x,holo_y ] = function_findcenter(mxProj );
                 xyFine{i}{j}(:,targ) = [holo_x,holo_y];
             catch
                 targ_stack = nan(finePts,1);
@@ -1166,7 +1171,6 @@ fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
 multiT = toc(multi_time);
 
 
-%%
 %% reshape matrix of values into vectors
 tIntermediateFine = tic; 
 
@@ -1245,7 +1249,7 @@ excludeTrials = excludeTrials | basVal>camMax; %max of this camera is 255
 basDimensions = size(Bgdframe);
 excludeTrials = excludeTrials | basXYZ(1,:)>=basDimensions(1)-1;
 excludeTrials = excludeTrials | basXYZ(2,:)>=basDimensions(2)-1;
-excludeTrials = excludeTrials | basXYZ(3,:)<-5; %9/19/19 Ian Added to remove systematic low fits
+excludeTrials = excludeTrials | basXYZ(3,:)<-20; %9/19/19 Ian Added to remove systematic low fits
 excludeTrials = excludeTrials | basXYZ(3,:)>200;
 
 
@@ -1550,7 +1554,7 @@ out.powerFitmodelTerms = modelterms;
 %% THIS BEGINS THE NEW SECTION 3/15/21
 
 %% Now using these CoC lets create holograms that shoot a pattern into a field of view
-disp('Picking Holes to Burn')
+% disp('Picking Holes to Burn')
 
 
 %module to restrict burn grid to most likely SI FOV.
@@ -1824,7 +1828,7 @@ for i = 1:planes
             % move the sutter
             currentPosition = getPosition(Sutter.obj);
             position = Sutter.Reference;
-            position(3) = position(3) + (fineUZ(k));
+            position(3) = position(3) - (fineUZ(k)); % edtied for bakcward sutter
             diff = currentPosition(3)-position(3);
             moveTime=moveTo(Sutter.obj,position);
 
@@ -2044,7 +2048,7 @@ refGet = (basXYZ4(1:3,1:end-holdback))';
 
 %  SLMtoCam = function_3DCoC(refAsk,refGet,modelterms);
 
-errScalar = 2.5; %2.8;%2.5;
+errScalar = 3; %2.8;%2.5;
 figure(1977);clf;subplot(1,2,1)
 [SLMtoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0);
 title('SLM to Cam v2')
@@ -2410,12 +2414,18 @@ disp('linked')
 numVol = 5; %number of SI volumes to average
 baseName = '''calib''';
 
-mssend(SISocket,['hSI.hStackManager.arbitraryZs = [' num2str(zsToBlast) '];']);
+% needed to turn it into a column for new scanimage?...
+str = [];
+for ii = 1:length(zsToBlast)
+        str = strcat(str, num2str(zsToBlast(ii)), ';');
+end
+
+mssend(SISocket,['hSI.hStackManager.arbitraryZs = [' str '];']);
 mssend(SISocket,['hSI.hStackManager.numVolumes = [' num2str(numVol) '];']);
 mssend(SISocket,'hSI.hStackManager.enable = 1 ;');
 
 mssend(SISocket,'hSI.hBeams.pzAdjust = 0;');
-mssend(SISocket,'hSI.hBeams.powers = 14;'); %power on SI laser. important no to use too much don't want to bleach
+mssend(SISocket,'hSI.hBeams.powers = 8;'); %power on SI laser. important no to use too much don't want to bleach
 
 mssend(SISocket,'hSI.extTrigEnable = 0;'); %savign
 mssend(SISocket,'hSI.hChannels.loggingEnable = 1;'); %savign
@@ -2464,7 +2474,7 @@ while wait
     end
 end
 
-burnPowerMultiplier = 9; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+burnPowerMultiplier = 10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
 burnTime = 0.5; %in seconds, very rough and not precise
 
 disp('Now Burning')
@@ -2475,7 +2485,7 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
 %     offset = round(meanCamZ(k))+5;
     currentPosition = getPosition(Sutter.obj);
     position = Sutter.Reference;
-    position(3) = position(3) + (offset);
+    position(3) = position(3) - (offset); % reversed for bakcwards sutter
     diff = currentPosition(3)-position(3);
     moveTime=moveTo(Sutter.obj,position);
     if k==1
@@ -2560,7 +2570,7 @@ tMov = tic;
 
 %on ScanImage Computer
 % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''F:\Calib\Temp''';
+destination = '''Z:\scope2kshare\Calib\Temp''';
 source = '''D:\Calib\Temp\calib*''';
 
 %clear invar
@@ -2587,9 +2597,7 @@ mssend(SISocket,'end');
 %%
 
 tLoad = tic;
-% pth = 'W:\frankenshare\FrankenscopeCalib'; %On this compute
-% pth ='F:\Temp'; %temp fix b/c frankenshare down
-pth = 'F:\Calib\Temp';
+pth = 'Z:\scope2kshare\Calib\Temp';
 files = dir(pth);
 
 baseN = eval(baseName);
@@ -2688,7 +2696,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (cam3XYZ(1:3,:))';
-errScalar = 2.5;2.5;2.6;
+errScalar = 2;2.5;2.6;
 
 figure(2594);clf
 subplot(1,2,1)
@@ -2722,7 +2730,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar =2.5;2.5;2.5;
+errScalar =2;2.5;2.5;
 
 figure(2616);clf
 subplot(1,2,1)
@@ -2754,7 +2762,7 @@ test2 = function_SLMtoSI(function_SItoSLM(test,CoC),CoC);
 ER1xy = test2(:,1:2)-test(:,1:2);
 RMSE1xy = sqrt(sum(ER1xy'.^2));
 
-SIpxPerMu = 512/800;
+SIpxPerMu = 512/400;
 
 ER1z = test2(:,3)-test(:,3);
 RMSE1z = abs(ER1z);
@@ -2903,14 +2911,14 @@ title('Simulated Z error, 1st methods')
 burnFitsT = toc(burnFitsTimer);
 
 %% Save Output Function
-pathToUse = 'C:\Users\Holography\Desktop\SLM_Management\Calib_Data';
+pathToUse = 'C:\Users\holos\Documents\SLM_Management\Calib_Data';
 disp('Saving...')
 tSave = tic;
 
 save(fullfile(pathToUse,[date '_Calib.mat']),'CoC')
 save(fullfile(pathToUse,'ActiveCalib.mat'),'CoC')
 
-pth = 'C:\Users\Holography\Desktop\calibs';
+pth = 'C:\Users\holos\Documents\calibs';
 save(fullfile(pth,[date '_Calib.mat']),'CoC')
 save(fullfile(pth,'ActiveCalib.mat'),'CoC')
 save(fullfile(pth,'CalibWorkspace.mat'), '-v7.3');
