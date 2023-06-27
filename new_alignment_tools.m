@@ -25,7 +25,9 @@ end
 
 [Setup.SLM ] = Function_Stop_SLM( Setup.SLM );
 [ Setup.SLM ] = Function_Start_SLM( Setup.SLM );
-
+slm = MeadowlarkOneK();
+slm.stop();
+slm.start();
 disp('SLM Ready!')
 %% Sutter
 
