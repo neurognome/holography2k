@@ -298,7 +298,8 @@ sequences = uint8(hololist); %shouldn't change anything added 9/14/21
 
 flushMSocket(masterSocket)
 
-slm = MeadowlarkOneK();
+% slm = MeadowlarkOneK();
+slm = HoloeyePLUTO();
 slm.stop();
 slm.wait_for_trigger = 1; % set settintgs
 slm.timeout_ms = timeout;

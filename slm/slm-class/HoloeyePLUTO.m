@@ -11,6 +11,8 @@ classdef HoloeyePLUTO < SLM
 
         lut_file = '' % 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
         lut
+
+        trigger = [];
     end
 
     methods
@@ -22,6 +24,9 @@ classdef HoloeyePLUTO < SLM
         end
 
         function start(obj)
+            % need an arduino
+            obj.trigger = arduino('COM4'); % get out of hardcode later...
+            obj.trigger.writeDigitalPin('D2', 0);
             heds_init_slm;
             
             % get lut
@@ -44,7 +49,26 @@ classdef HoloeyePLUTO < SLM
                 heds_datahandle_set_lookuptable(data_handle, obj.lut);
             end
             % show the hologram
+            if obj.wait_for_trigger
+                obj.wait();
+            end
             out = heds_show_datahandle(data_handle.id);
+            obj.send_flip();
+        end
+
+        function wait(obj)
+            tic
+            while ~obj.trigger.readDigitalPin('D13') 
+                elapsed = toc;
+                disp(elapsed)
+            end
+            disp('firing!');
+        end
+
+        function send_flip(obj)
+            obj.trigger.writeDigitalPin('D2', 1);
+            drawnow();
+            obj.trigger.writeDigitalPin('D2', 0);
         end
     end
 end
