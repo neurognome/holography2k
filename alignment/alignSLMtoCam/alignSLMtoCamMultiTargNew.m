@@ -83,7 +83,7 @@ function_BasPreview(Setup);
 %run this first then code on daq
 disp('Waiting for msocket communication From DAQ')
 %then wait for a handshake
-srvsock = mslisten(42122);
+srvsock = mslisten(42121);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -126,11 +126,12 @@ disp('communication from Master To SI Established');
 
 %% Set Power Levels
 
-pwr = 1.15; 
+pwr = 1.3; 
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 %%
 disp('Find the spot and check if this is the right amount of power')
-slmCoords = [.4 .6 0.03 1]; % 0.03 aligend, -0.045 is 120 above, 0.045 is 20 below
+slmCoords = [.4 .6 0.005 1]; % 0.
+% 15Aug2023 new alignment: [0.005, 0.077]
 % DEestimate = DEfromSLMCoords(slmCoords); %
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
@@ -188,7 +189,7 @@ moveTime=moveTo(Sutter.obj,position);
 tManual = toc(tBegin);
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
+reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
  
 if ~reloadHolos
@@ -206,7 +207,7 @@ if ~reloadHolos
     slmYrange = [0.17 0.84];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
     
     % set Z range
-    slmZrange = [-0.045 0.045];
+    slmZrange = [0.005 0.077];
     % 12/29/22 WH - should be roughly +145 um (-0.04 SLM) to -30 um (0.025 SLM)
  
     %3/11/21 IO.  %%[-0.02 0.07];%9/19/19 % [-0.1 0.15];
@@ -278,7 +279,7 @@ if ~reloadHolos
     
     out.hololist = hololist;
     out.slmCoords = slmCoords;
-    out.multiHolo = multiHolo;
+    % out.multiHolo = multiHolo;
     save('tempHololist4_will.mat','out');
 else
     disp('Reloading old Holograms...')
@@ -545,7 +546,7 @@ excl = SIpeakVal>255;
 % SIpeakVal(excl)=nan;
 % SIpeakDepth(excl)=nan;
 
-excl = SIpeakDepth<-15 | SIpeakDepth>130; %upper bound added 7/15/2020 -Ian
+excl = SIpeakDepth<-15 | SIpeakDepth>110; %upper bound added 7/15/2020 -Ian
 % excl = SIpeakDepth<-130 | SIpeakDepth>10; %upper bound added 7/15/2020 -Ian
 
 disp([num2str(sum(excl(:))) ' points excluded b/c too deep'])
@@ -2374,7 +2375,7 @@ blankHolo = zeros(1024, 1024);
 
 clear tempHololist
 for k = 1:numel(zsToBlast)
-    parfor i=1:size(XYtarg{k},2)
+    for i=1:size(XYtarg{k},2)
         t=tic;
         fprintf(['Compiling Holo ' num2str(i) ' for depth ' num2str(k)]);
         subcoordinates =  [SLMtarg{k}(i,1:3) 1];
@@ -2425,9 +2426,9 @@ mssend(SISocket,['hSI.hStackManager.numVolumes = [' num2str(numVol) '];']);
 mssend(SISocket,'hSI.hStackManager.enable = 1 ;');
 
 mssend(SISocket,'hSI.hBeams.pzAdjust = 0;');
-mssend(SISocket,'hSI.hBeams.powers = 8;'); %power on SI laser. important no to use too much don't want to bleach
+mssend(SISocket,'hSI.hBeams.powers = 15;'); %power on SI laser. important no to use too much don't want to bleach
 
-mssend(SISocket,'hSI.extTrigEnable = 0;'); %savign
+mssend(SISocket,'hSI.extTrigEnable = 0;'); %saassvign
 mssend(SISocket,'hSI.hChannels.loggingEnable = 1;'); %savign
 mssend(SISocket,'hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';');
 mssend(SISocket,['hSI.hScan2D.logFileStem = ' baseName ';']);
@@ -2570,7 +2571,7 @@ tMov = tic;
 
 %on ScanImage Computer
 % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''Z:\scope2kshare\Calib\Temp''';
+destination = '''K:\Calib\Temp''';
 source = '''D:\Calib\Temp\calib*''';
 
 %clear invar
@@ -2597,7 +2598,7 @@ mssend(SISocket,'end');
 %%
 
 tLoad = tic;
-pth = 'Z:\scope2kshare\Calib\Temp';
+pth = 'K:\Calib\Temp';
 files = dir(pth);
 
 baseN = eval(baseName);
@@ -2633,7 +2634,7 @@ for i=4:numel(files)
             mask = maskFR > mean(maskFR(:))+6*std(maskFR(:));
             
             %remove the low frequency slide illumination differences
-            filtNum = 2;
+            filtNum = 3;
             frameFilt = imgaussfilt(Frame,filtNum);
             baseFilt = imgaussfilt(baseFrame,filtNum);
             
@@ -2690,21 +2691,32 @@ SIXYZ = SIXYZbackup;
 
 cam3XYZ=cam3XYZ(:,1:size(SIXYZ,2));
 
-excl = SIXYZ(1,:)<=5 | SIXYZ(1,:)>=507| SIXYZ(2,:)<=5 | SIXYZ(2,:)>=507;
+figure(666)
+clf
+% scatter3(cam3XYZ(1,:), cam3XYZ(2,:), cam3XYZ(3,:), [], '*')
+scatter3(SIXYZ(1,:), SIXYZ(2,:), SIXYZ(3,:), [], 'o')
+
+excl = SIXYZ(1,:)<=9 | SIXYZ(1,:)>=503| SIXYZ(2,:)<=9| SIXYZ(2,:)>=503;
+disp(['There were ' num2str(sum(excl)) ' of ' num2str(numel(excl)) ' points excluded.'])
 cam3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
+
 refAsk = SIXYZ(1:3,:)';
 refGet = (cam3XYZ(1:3,:))';
-errScalar = 2;2.5;2.6;
+errScalar = 2.5;
 
-figure(2594);clf
+figure(2594)
+clf
+
 subplot(1,2,1)
-[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0);
+aa = gca();
+[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0, aa);
 title('SI to Cam')
 
 subplot(1,2,2)
-[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0);
+aa = gca();
+[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0, aa);
 title('Cam to SI')
 
 CoC.CamToSI = CamToSI;
@@ -2730,14 +2742,20 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar =2;2.5;2.5;
+errScalar = 2;
 
-figure(2616);clf
+figure(2616)
+clf
+
 subplot(1,2,1)
-[SItoSLM, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0);
+aaa = gca();
+
+[SItoSLM, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0,aaa);
 title('SI to SLM')
 subplot(1,2,2)
-[SLMtoSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0);
+aaa = gca();
+
+[SLMtoSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0,aaa);
 title('SLM to SI')
 
 CoC.SItoSLM = SItoSLM;

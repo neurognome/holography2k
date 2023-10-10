@@ -40,7 +40,7 @@ bas.preview()
 %run this first then code on daq
 fprintf('Waiting for msocket communication From DAQ... ')
 %then wait for a handshake
-srvsock = mslisten(42122);
+srvsock = mslisten(42120);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -66,7 +66,7 @@ fprintf('done.\r')
 % scaled for multi-target holograms and hole-burning
 
 pwr = 1.7;
-slmCoords = [.4 .6 0.025 1];
+slmCoords = [.4 .6 0.07 1]; % scanimage alignd: [.4 .6 0.07 1]; % 
 
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])

@@ -1,3 +1,4 @@
+function MsocketHolorequest2K(masterSocket)
 timeout = 1700;
 
 addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
@@ -21,20 +22,20 @@ load(Setup.calib,'CoC');
 disp(['Successfully loaded CoC from: ', Setup.calib])
 %% now start msocket communication
  
-disp('Waiting for msocket communication')
-
-srvsock = mslisten(42120); %3027
-masterSocket = msaccept(srvsock,6);
-msclose(srvsock)
-sendVar = 'A';
-mssend(masterSocket, sendVar);
-
-invar = [];
-while ~strcmp(invar,'B')
-    invar = msrecv(masterSocket,.5);
-end
-
-disp('communication from Master To Holo Established')
+% disp('Waiting for msocket communication')
+% 
+% srvsock = mslisten(42121); %3027
+% masterSocket = msaccept(srvsock,6);
+% msclose(srvsock)
+% sendVar = 'A';
+% mssend(masterSocket, sendVar);
+% 
+% invar = [];
+% while ~strcmp(invar,'B')
+%     invar = msrecv(masterSocket,.5);
+% end
+% 
+% disp('communication from Master To Holo Established')
 
 x = 1;     
 HRin = []; 
@@ -298,8 +299,8 @@ sequences = uint8(hololist); %shouldn't change anything added 9/14/21
 
 flushMSocket(masterSocket)
 
-% slm = MeadowlarkOneK();
-slm = HoloeyePLUTO();
+slm = MeadowlarkOneK();
+% slm = HoloeyePLUTO();
 slm.stop();
 slm.wait_for_trigger = 1; % set settintgs
 slm.timeout_ms = timeout;
@@ -320,4 +321,4 @@ while true
     c=c+1;
 end
 
-
+    

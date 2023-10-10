@@ -22,6 +22,10 @@ methods
     function feed(obj)
     end
 
+    function blank(obj)
+        obj.feed(zeros(obj.Nx, obj.Ny));
+    end
+
     function out =  get_slm_parameters(obj)
         props = properties(obj);
         out = struct();

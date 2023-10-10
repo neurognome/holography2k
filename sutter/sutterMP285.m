@@ -153,6 +153,7 @@ classdef sutterMP285 < serial
             %  call when the Sutter is first turned on. After that, the
             %  velocity can be set to any valid value.
             setVelocity(obj, 777, 10);
+            % [obj.stepMult, currentVelocity]=getStatus(obj);
             [obj.stepMult, currentVelocity]=getStatus(obj);
             if currentVelocity==777
                 fprintf(1,'sutterMP285: Sutter ready.\n');
@@ -185,7 +186,8 @@ classdef sutterMP285 < serial
 
             % the value of STEP_MUL ("Multiplier yields msteps/nm") is at bytes 25 & 26
             stepMult=double(statusbytes(26))*256+double(statusbytes(25));
-            stepMult = 25; % Temp 05Jun2023 KKS
+            disp('!! Manually setting stepMult !!')
+            stepMult = 25; % KKS 04Aug2023, new sutter calculates this differently
             % the value of "XSPEED"  and scale factor is at bytes 29 & 30
             if statusbytes(30) > 127
                 vScaleFactor = 50;
