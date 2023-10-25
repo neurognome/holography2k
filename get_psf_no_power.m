@@ -49,7 +49,7 @@ bas.preview()
 % scaled for multi-target holograms and hole-burning
 
 pwr = 10;
-slmCoords = [0.45 0.45 0.020 1];
+slmCoords = [513/1024, 513/1024  0.0 1];
 % x = linspace(.3, .7, 3);
 % [x, y] = meshgrid(x, x);
 % slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
@@ -60,7 +60,7 @@ disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
 Function_Feed_SLM(Setup.SLM, Holo);
-bas.preview()
+% bas.preview()
 
 %% check pixel val
 bgd_frames = bas.grab(10);

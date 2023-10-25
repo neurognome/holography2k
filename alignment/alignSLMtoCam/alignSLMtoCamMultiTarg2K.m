@@ -6,9 +6,6 @@ if ~strcmp(in,'y')
     return
 end
 
-try function_close_sutter( Sutter ); end
-try function_stopBasCam(Setup); end
-
 clear;close all;clc
 %%
 tBegin = tic;
@@ -29,7 +26,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 900;
+calibration_wavelength = 1030;
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -52,8 +49,9 @@ switch calibration_wavelength
         slm = meadowlark;
 end
 
-slm.stop()
+slm.stop();
 slm.wait_for_trigger = 0;
+slm.start();
 
 % setup basler camera
 bas = bascam();
@@ -68,10 +66,11 @@ disp('Ready')
 bas.preview()
 
 %% Make mSocketConnections with DAQ and SI Computers
-% run this first then code on daq`
+% RUN THIS FIRST, THEN DAQ CODE (alignCodeDAQ2K)
+
 disp('Waiting for msocket communication From DAQ')
 %then wait for a handshake
-srvsock = mslisten(42121);
+srvsock = mslisten(42125);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -85,12 +84,13 @@ end
 disp('communication from Master To Holo Established');
 
 % send the calibration parameters....
-mssend(masterSocket, calibration_wavelength)
+mssend(masterSocket, calibration_wavelength);
 
-%% run 'autoCalibSI'
+%% Connect with SI computer
+% RUN THIS FIRST, THEN SI CODE (autoCalibSI)
 disp('Waiting for msocket communication to ScanImage Computer')
 %then wait for a handshake
-srvsock2 = mslisten(42040);
+srvsock2 = mslisten(42043);
 SISocket = msaccept(srvsock2,15);
 msclose(srvsock2);
 sendVar = 'A';
@@ -129,7 +129,7 @@ mssend(masterSocket,[0 1 1]);
 mssend(masterSocket,[pwr/1000 1 1]);
 data = bas.grab(5);
 mssend(masterSocket,[0 1 1]);
-frame = castImg(mean(data,3));
+frame = mean(data,3); % used to have a castImg, not sure why?
 figure(668)
 imagesc(frame)
 colorbar
@@ -154,9 +154,10 @@ disp('Make sure both lasers are on and the shutters open')
 disp('Scanimage should be idle, nearly in plane with focus. and with the gain set high enough to see most of the FOV without saturating')
 disp('THE MOUSE MONITOR SHOULD BE TURNED OFF')
 
-position = sutter.position;
-position(3) = position(3) - 100;
-sutter.moveTo(position)
+% position = sutter.position;
+% position(3) = position(3) - 100;
+% sutter.moveTo(position)
+sutter.moveZ(-100);
 % moveTime=moveTo(Sutter.obj,position);
 disp('testing the sutter double check that it moved to reference +100');
 input('Ready to go (Press any key to continue)');
@@ -167,7 +168,7 @@ tManual = toc(tBegin); % wat is this used for here?
 
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
+reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 
 if ~reloadHolos
@@ -301,7 +302,7 @@ nBackgroundFrames = 10;
 
 Bgdframe = bas.grab(nBackgroundFrames);
 % Bgdframe = function_BasGetFrame(Setup,nBackgroundFrames);% function_Basler_get_frames(Setup, nBackgroundFrames );
-Bgd = castImg(mean(Bgdframe,3));
+Bgd = mean(Bgdframe,3);
 BGD = mean(Bgdframe,3);
 meanBgd = mean(single(Bgdframe(:)));
 stdBgd =  std(single(Bgdframe(:)));
@@ -373,11 +374,12 @@ for k =1:numel(zsToUse)
         fprintf([num2str(round(SIUZ(i))) ' ']);
         
         % currentPosition = getPosition(Sutter.obj);
-        position = sutter.reference;
-        position(3) = position(3) - (SIUZ(i)); % edtied for backwards sutter
-        % diff = currentPosition(3) - position(3);
-        %           tic;
-        sutter.moveTo(position)
+        % position = sutter.reference;
+        % position(3) = position(3) - (SIUZ(i)); % edtied for backwards sutter
+        % % diff = currentPosition(3) - position(3);
+        % %           tic;
+        % sutter.moveTo(position)
+        sutter.moveZ(-SIUZ(i));
         % moveTime=moveTo(Sutter.obj,position);
         %           toc;
         if i==1
@@ -413,7 +415,7 @@ for k =1:numel(zsToUse)
         %          imagesc(nanmean(dataUZ,3));
         %          drawnow
     end
-    sutter.moveToRef(0)
+    sutter.moveToRef()
     % position = Sutter.Reference;
     % moveTime=moveTo(Sutter.obj,position);
     pause(0.1)
