@@ -11,7 +11,6 @@ clear;close all;clc
 tBegin = tic;
 %
 makePaths()
-addpath('./scripts')
 disp('done pathing')
 
 %% Setup Stuff
@@ -163,7 +162,7 @@ sutter.moveToRef();
 
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
+reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 
 if ~reloadHolos
@@ -194,7 +193,8 @@ tSI=tic;
 nBackgroundFrames = 10;
 
 Bgdframe = bas.grab(nBackgroundFrames);
-% Bgd = mean(Bgdframe,3);
+Bgd = mean(Bgdframe,3);
+BGD=Bgd;
 % BGD = mean(Bgdframe,3);
 meanBgd = mean(single(Bgdframe(:)));
 stdBgd =  std(single(Bgdframe(:)));
@@ -204,7 +204,7 @@ threshHold = meanBgd+3*stdBgd;
 fprintf(['3\x03c3 above mean threshold ' num2str(threshHold,4) '\n'])
 
 figure(328)
-imagesc(meanBgd)
+imagesc(Bgd)
 
 %% Scan Image Planes Calibration
 disp('Begining SI Depth calibration, we do this first incase spots burn holes with holograms')
@@ -411,21 +411,21 @@ for i = 1:numel(coarseUZ)
             fprintf('\n')
         end
         
-        slm.feed(hololist(:, :, k)) 
+        slm.feed(hololist(:, :, k));
         mssend(masterSocket,[pwr/1000 1 1]);
-        invar=[];
-        while ~strcmp(invar,'gotit')
-            invar = msrecv(masterSocket,0.01);
-        end
+        % invar=[];
+        % while ~strcmp(invar,'gotit')
+        %     invar = msrecv(masterSocket,0.01);
+        % end
         frame = bas.grab(numFramesCoarseHolo);
         frame = mean(frame, 3);
         
         mssend(masterSocket,[0 1 1]);
 
         invar=[];
-        while ~strcmp(invar,'gotit')
-            invar = msrecv(masterSocket,0.01);
-        end
+        % while ~strcmp(invar,'gotit')
+        %     invar = msrecv(masterSocket,0.01);
+        % end
         frame =  max(frame-Bgd,0);
         frame = imgaussfilt(frame,2);
         frame = imresize(frame,newSize);
