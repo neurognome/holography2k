@@ -1,26 +1,45 @@
-function alignCodeDAQ
+function alignCodeDAQ2K
 %%Create DAQ Session
+fprintf('Starting daq...\r')
+
+fprintf('Loading defaults... ')
+setup = getDefaults();  
+fprintf('OK.\n')
+
+fprintf('Making MATLAB NIDAQ object... ')
+dq = daq('ni');
+dq.Rate = setup.daqrate;
+fprintf('OK.\n')
+
+fprintf('Making SerialPort object... ')
+s = serialport("COM5", ...
+    9600,...
+    'ByteOrder', 'big-endian',...
+    'Parity', 'none',...
+    'StopBits', 1,...
+    'DataBits', 8);
+s.configureTerminator('CR/LF');
+fprintf('OK.\n')
+%%
 
 %initalize contact
-% IP='128.32.173.87';
-% IP='128.32.173.209';
 fpc_900 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line5'), 'Shutter 900'),...
-    ELL14(SerialInterface(s), 0, 'Power 900'),...
-    'C:\Users\holos\Documents\power-calibrations\230918_900nm_100kHz_25AOM_fast_gate_calibration.mat');
+    ELL14(SerialInterface(s), 1, '_Power 900'),...
+    'C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz_25AOM_none_gate_calibration.mat'); % update these calibration paths as you get them...
 
 fpc_1100 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1100'),...
-    ELL14(SerialInterface(s), 0, 'Power 1100'),...
-    'C:\Users\holos\Documents\power-calibrations\230918_1100nm_100kHz_25AOM_fast_gate_calibration.mat');
+    ELL14(SerialInterface(s), 2, 'Power 1100'),...
+    "C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz25AOM_none_gate_calibration.mat");
 
-fpc_1030 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1100'),...
-    ELL14(SerialInterface(s), 0, 'Power 1100'),...
-    'C:\Users\holos\Documents\power-calibrations\230918_1100nm_100kHz_25AOM_fast_gate_calibration.mat');
+fpc_1030 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1030'),...
+    ELL14(SerialInterface(s), 3, 'Power 1100'),...
+    "C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz_25AOM_none_gate_calibration.mat");
+%%
 
 [HoloSocket]=msocketPrep();
+calibration_wavelength = msrecv(HoloSocket, 5); % long timeout
 
-% choose the appropriate one here?
-calibration_wavelength = msrecv(HoloSocket, 5) % long timeout
-
+fprintf('Calibrating %dnm.\n', calibration_wavelength)
 switch calibration_wavelength
     case 900
         pwr = fpc_900;
@@ -29,6 +48,8 @@ switch calibration_wavelength
     case 1030
         pwr = fpc_1030;
 end
+
+pwr.initialize(); % add channels to daq
 
 %% get data
 disp('Waiting for Hologram info')
