@@ -13,8 +13,9 @@ classdef MeadowlarkOneK < SLM
         state = 0
         pixelmax = 255
         true_frames = 3
-
-        lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
+        
+        % lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
+        lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1030.lut';
         reg_lut = libpointer('string');
     end
 

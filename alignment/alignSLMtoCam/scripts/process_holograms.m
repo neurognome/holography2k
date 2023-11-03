@@ -82,7 +82,7 @@ excludeTrials = excludeTrials | basXYZ(3,:)>200;
 
 
 excludeTrials = excludeTrials | any(isnan(basXYZ(:,:)));
-excludeTrials = excludeTrials | basVal<10; %8/3 hayley add 5; Ian ammend to 1 9/13
+excludeTrials = excludeTrials | basVal<2; %  02Nov2023 KS changedi from 10 --> 2
 % excludeTrials = excludeTrials | basVal>(mean(basVal)+3*std(basVal)); %9/13/19 Ian Add
 excludeTrials = excludeTrials | basVal>250;
 
@@ -139,7 +139,7 @@ reOrder = randperm(size(slmXYZ,2));
 slmXYZ = slmXYZ(:,reOrder);
 basXYZ = basXYZ(:,reOrder);
 
-holdback = 30;%50;
+holdback = 10;%50;
 
 refAsk = (slmXYZ(1:3,1:end-holdback))';
 refGet = (basXYZ(1:3,1:end-holdback))';
@@ -551,7 +551,7 @@ for i=1:planes
             
             targs_this_plane = find(idx==i);
             % choose rand holos
-            holo_idxs = randperm(length(targs_this_plane),multiholosize);
+            holo_idxs = randperm(length(targs_this_plane), min(multiholosize, length(targs_this_plane)));
             dist = pdist2(expectBas(holo_idxs,:),expectBas(holo_idxs,:));
             temp = rand(size(dist,1));
             dist(find(diag(diag(temp))))=nan;
@@ -649,14 +649,7 @@ for i = 1:planes
     for k = 1:finePts
         fprintf([num2str(round(fineUZ(k))) ' ']);
         
-        % move the sutter
-        % currentPosition = getPosition(Sutter.obj);
-        % position = Sutter.Reference;
-        position = sutter.reference;
-        position(3) = position(3) - (fineUZ(k)); % edtied for bakcward sutter
-        % diff = currentPosition(3)-position(3);
-        % moveTime=moveTo(Sutter.obj,position);
-        sutter.moveTo(position)
+        sutter.moveZ(-fineUZ(k));
         
         if i==1
             pause(1)

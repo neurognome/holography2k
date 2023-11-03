@@ -3,12 +3,7 @@ disp('Everything after this should be automated so sitback and enjoy')
 
 npts = 250; %You can almost get through 750 with water before it evaporates.
 
-%ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.13 0.75];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-slmYrange = [0.17 0.84];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
-% set Z range
-slmZrange = [0.005 0.077];
 % 12/29/22 WH - should be roughly +145 um (-0.04 SLM) to -30 um (0.025 SLM)
 
 dummy = rand;

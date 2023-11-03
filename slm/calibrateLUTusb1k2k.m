@@ -17,7 +17,9 @@ fopen(v);
 % should all be located in the same directory as the program referencing the
 % library
 
-addpath(genpath('c:\users\holography\desktop\meadowlark'))
+addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus'));
+addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK'));
+addpath(genpath('C:\Program Files\HOLOEYE Photonics\SLM Display SDK (MATLAB) v1.1.1\win64'))
 
 if ~libisloaded('Blink_C_wrapper')
     loadlibrary('Blink_C_wrapper.dll', 'Blink_C_wrapper.h');

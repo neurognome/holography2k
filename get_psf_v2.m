@@ -3,7 +3,8 @@
 clear
 close all
 clc
-
+%%
+wavelength = 1100;
 tBegin = tic;
 
 disp('Setting up stuff...');
@@ -21,9 +22,22 @@ if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
     g= gpuDevice;
 end
+% setup slms
+meadowlark = MeadowlarkOneK();
+holoeye = HoloeyePLUTO();
 
-Setup.SLM = Function_Stop_SLM( Setup.SLM );
-Setup.SLM = Function_Start_SLM( Setup.SLM );
+switch wavelength
+    case 900
+        slm = holoeye;
+    case 1100
+        slm = meadowlark;
+    case 1030
+        slm = meadowlark;
+end
+
+slm.stop();
+slm.wait_for_trigger = 0;
+slm.start();
 
 sutter = sutterController();
 
@@ -40,7 +54,7 @@ bas.preview()
 %run this first then code on daq
 fprintf('Waiting for msocket communication From DAQ... ')
 %then wait for a handshake
-srvsock = mslisten(42120);
+srvsock = mslisten(42128);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -51,6 +65,8 @@ invar = [];
 while ~strcmp(invar,'B')
     invar = msrecv(masterSocket,.5);
 end
+
+mssend(masterSocket, wavelength);
 fprintf('done.\r')
 
 %% set power levels
@@ -65,8 +81,8 @@ fprintf('done.\r')
 % this power will be used throughout the calibration and is appropriately
 % scaled for multi-target holograms and hole-burning
 
-pwr = 1.7;
-slmCoords = [.4 .6 0.07 1]; % scanimage alignd: [.4 .6 0.07 1]; % 
+pwr = .5;
+slmCoords = [0.4 0.4 0 1]; % scanimage alignd: [.4 .6 0.07 1]; % 
 
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
@@ -75,7 +91,9 @@ disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
-Function_Feed_SLM(Setup.SLM, Holo);
+% Function_Feed_SLM(Setup.SLM, Holo);
+% slm.feed(zeros(1024, 1024));
+slm.feed(Holo);
 mssend(masterSocket, [pwr/1000 1 1]);
 bas.preview()
 mssend(masterSocket, [0 1 1]);
@@ -86,7 +104,6 @@ bgd = mean(bgd_frames, 3);
 
 mssend(masterSocket, [pwr/1000 1 1]);
 data = bas.grab(10);
-mssend(masterSocket, [0 1 1]);
 mssend(masterSocket, [0 1 1]);
 data = mean(data,3);
 frame = max(data-bgd, 0);
@@ -122,7 +139,7 @@ figure(1); clf
 sutter.setRef()
 
 sz = size(bgd);
-UZ= linspace(-70,70,21);
+UZ= linspace(-70,70,41);
 
 dataUZ = zeros([sz numel(UZ)]);
 
@@ -164,6 +181,7 @@ for i=1:numel(UZ)
     imagesc(frame);
     title(['Frame ' num2str(i)])
     colorbar
+    axis image
 %     axis equal
 %     clim([0 255])
 
@@ -172,6 +190,8 @@ for i=1:numel(UZ)
     colorbar
 %     clim([0 255])
     title('Max Projection')
+    axis image
+
 %     axis equal
     drawnow
 end

@@ -13,6 +13,10 @@ tBegin = tic;
 makePaths()
 disp('done pathing')
 
+castImg = @uint8;
+castAs = 'uint8';
+camMax = 255;
+
 %% Setup Stuff
 disp('Setting up stuff...');
 
@@ -26,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 1030;
+calibration_wavelength = 1100;
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -70,7 +74,7 @@ bas.preview()
 
 disp('Waiting for msocket communication From DAQ')
 %then wait for a handshake
-srvsock = mslisten(42125);
+srvsock = mslisten(42128);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -106,13 +110,13 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 1.3;
+pwr = 1;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [.4 .6 0.005 1]; % 0.
+slmCoords = [.4 .4 0.01 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -162,9 +166,14 @@ sutter.moveToRef();
 
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
+reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
+%ranges set by exploration moving holograms looking at z1 fov.
+slmXrange = [0.15 0.88];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+slmYrange = [0.07 0.9];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
+% set Z range
+slmZrange = [-0.055 0.03];
 if ~reloadHolos
     create_holograms
 else
@@ -193,7 +202,7 @@ tSI=tic;
 nBackgroundFrames = 10;
 
 Bgdframe = bas.grab(nBackgroundFrames);
-Bgd = mean(Bgdframe,3);
+Bgd = castImg(mean(Bgdframe,3));
 BGD=Bgd;
 % BGD = mean(Bgdframe,3);
 meanBgd = mean(single(Bgdframe(:)));
@@ -275,9 +284,9 @@ for k =1:numel(zsToUse)
         
         %change this part to change number of frames acquired
         frame = bas.grab(framesToAcquire);
-        frame = (mean(frame,3)); %no cast to uint8
+        frame = castImg(mean(frame,3));
         frame =  max(frame-BGD,0);
-        frame = imgaussfilt(frame,2);
+        % frame = imgaussfilt(frame,2);
         dataUZ(:,:,i) =  frame;
     end
     sutter.moveToRef()
@@ -393,6 +402,7 @@ maxProjections=castImg(zeros([newSize  npts]));
 
 numFramesCoarseHolo = 3; %number of frames to collect here. added 7/16/2020 -Ian
 
+figure(1234);
 for i = 1:numel(coarseUZ)
     fprintf(['First Pass Holo, Depth: ' num2str(coarseUZ(i)) '. Holo : '])
     t = tic;
@@ -413,23 +423,25 @@ for i = 1:numel(coarseUZ)
         
         slm.feed(hololist(:, :, k));
         mssend(masterSocket,[pwr/1000 1 1]);
-        % invar=[];
-        % while ~strcmp(invar,'gotit')
-        %     invar = msrecv(masterSocket,0.01);
-        % end
+        invar=[];
+        while ~strcmp(invar,'gotit')
+            invar = msrecv(masterSocket,0.01);
+        end
         frame = bas.grab(numFramesCoarseHolo);
-        frame = mean(frame, 3);
-        
+        frame = castImg(mean(frame, 3));
+
         mssend(masterSocket,[0 1 1]);
 
         invar=[];
-        % while ~strcmp(invar,'gotit')
-        %     invar = msrecv(masterSocket,0.01);
-        % end
+        while ~strcmp(invar,'gotit')
+            invar = msrecv(masterSocket,0.01);
+        end
         frame =  max(frame-Bgd,0);
         frame = imgaussfilt(frame,2);
         frame = imresize(frame,newSize);
         dataUZ2(:,:,i,k) =  frame;
+        imagesc(max(dataUZ2(:, :, i, :), [], 4));
+        drawnow();
     end
     fprintf(['\nPlane Took ' num2str(toc(t)) ' seconds\n'])
     
@@ -526,14 +538,14 @@ for i = 1:planes
             
             % grab a frame, convert to uint8
             frame = bas.grab(10);
-            frame = mean(frame, 3);
+            frame = castImg(mean(frame, 3));
             
             % turn off the laser
             requestPower(0,masterSocket)
             
             % subtract the background and filter
             frame =  max(frame-Bgd,0);
-            frame = imgaussfilt(frame,2);
+            % frame = imgaussfilt(frame,2);
             dataUZ(:,:,k) =  frame;
         end
         
@@ -800,15 +812,15 @@ pathToUse = 'C:\Users\holos\Documents\SLM_Management\Calib_Data';
 disp('Saving...')
 tSave = tic;
 
-save(fullfile(pathToUse,[date '_Calib.mat']),'CoC')
+save(fullfile(pathToUse,[date '_Calib_' calibration_wavelength '.mat']),'CoC')
 save(fullfile(pathToUse,'ActiveCalib.mat'),'CoC')
 
 pth = 'C:\Users\holos\Documents\calibs';
-save(fullfile(pth,[date '_Calib.mat']),'CoC')
+save(fullfile(pth,[date '_Calib_' calibration_wavelength '.mat']),'CoC')
 save(fullfile(pth,'ActiveCalib.mat'),'CoC')
-save(fullfile(pth,'CalibWorkspace.mat'), '-v7.3');
+save(fullfile(pth,['CalibWorkspace_' calibration_wavelength '.mat']), '-v7.3');
 
-p
+
 % times.saveT = toc(tSave);
 % times.burnFitsT = burnFitsT;
 % times.loadT = loadT;

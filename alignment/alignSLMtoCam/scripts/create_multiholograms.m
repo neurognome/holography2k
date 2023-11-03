@@ -81,7 +81,7 @@ Setup.GSoffset=0;
 Setup.verbose =0;
 Setup.useGPU =1;
 
-cores=6; % check this
+cores=10; % check this
 
 if cores > 1
     p =gcp('nocreate');
