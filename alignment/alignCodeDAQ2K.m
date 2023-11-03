@@ -25,15 +25,15 @@ fprintf('OK.\n')
 %initalize contact
 fpc_900 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line5'), 'Shutter 900'),...
     ELL14(SerialInterface(s), 1, '_Power 900'),...
-    'C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz_25AOM_none_gate_calibration.mat'); % update these calibration paths as you get them...
+    'C:\Users\holos\Documents\power-calibrations\231031_1030nm_25kHz_30AOM_uni_gate_calibration.mat', 25); % update these calibration paths as you get them...
 
-fpc_1100 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1100'),...
+fpc_1100 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line4'), 'Shutter 1100'),...
     ELL14(SerialInterface(s), 2, 'Power 1100'),...
-    "C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz25AOM_none_gate_calibration.mat");
+    'C:\Users\holos\Documents\power-calibrations\231031_1030nm_25kHz_30AOM_uni_gate_calibration.mat', 25);
 
 fpc_1030 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1030'),...
-    ELL14(SerialInterface(s), 3, 'Power 1100'),...
-    "C:\Users\holos\Documents\power-calibrations\231019_1030nm_50kHz_25AOM_none_gate_calibration.mat");
+    ELL14(SerialInterface(s), 3, 'Power 1030'),...
+    'C:\Users\holos\Documents\power-calibrations\231031_1030nm_25kHz_30AOM_uni_gate_calibration.mat', 25);
 %%
 
 [HoloSocket]=msocketPrep();
@@ -66,10 +66,12 @@ while go;
         if PowerRequest == 0
             pwr.zero()
         else
+            %wr.hwp.moveto(22);
             pwr.power(PowerRequest); % set power, check if mW or W
             pwr.open(); % open shutter
         end
         
+        fprintf('%0.2fmW\t', PowerRequest*1000);
         mssend(HoloSocket,'gotit');
         
         fprintf(['Time since last run ' num2str(toc(tstart),2) 's\n']);

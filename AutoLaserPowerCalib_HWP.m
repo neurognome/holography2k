@@ -26,7 +26,7 @@ fopen(v);
 
 %% Params
 nsamplesPM = 1000; % counts (at 1000 Hz I think), produces an average
-interStepPause = 5; % seconds
+interStepPause = 0.5; % seconds
 
 %% initialize the thing
 
@@ -63,7 +63,7 @@ dq.write(0); % close shutter
 % disp('Put Laser Gate on Bypass') %added 3/18/21
 
 %% initial search for low and high points
-initial_search_queries = linspace(0, 120, 60); % 0 to 70
+initial_search_queries = linspace(0, 120, 60*2); % 0 to 70
 
 initial_search_values = zeros(size(initial_search_queries));
 
