@@ -13,6 +13,7 @@ classdef MeadowlarkOneK < SLM
         state = 0
         pixelmax = 255
         true_frames = 3
+        board_id
         
         % lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
         lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1030.lut';
@@ -20,8 +21,13 @@ classdef MeadowlarkOneK < SLM
     end
 
     methods
-        function obj = MeadowlarkOneK()
+        function obj = MeadowlarkOneK(board_id)
+            if nargin < 1 || isempty(board_id)
+                board_id = 1;
+            end
             obj = obj@SLM();
+
+            obj.board_id = board_id; 
             obj.Nx = 1024;
             obj.Ny = 1024;
             obj.psSLM = 17e-6;       % meters    SLM pixel dimensions
@@ -42,7 +48,7 @@ classdef MeadowlarkOneK < SLM
                     disp('Blink SDK was successfully constructed');
                     fprintf('Found %u SLM controller(s)\n', obj.num_boards_found.value);
                     % A linear LUT must be loaded to the controller for OverDrive Plus
-                    calllib('Blink_C_wrapper', 'Load_LUT_file', 1, obj.lut_file);
+                    calllib('Blink_C_wrapper', 'Load_LUT_file', obj.board_id, obj.lut_file);
                 end
 
                 if obj.wait_for_trigger == 1
@@ -73,8 +79,8 @@ classdef MeadowlarkOneK < SLM
         end
 
         function out = feed(obj, frame)
-            calllib('Blink_C_wrapper', 'Write_image', 1, frame, obj.Nx*obj.Ny, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
-            out = calllib('Blink_C_wrapper', 'ImageWriteComplete', 1, obj.timeout_ms);
+            calllib('Blink_C_wrapper', 'Write_image', obj.board_id, frame, obj.Nx*obj.Ny, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
+            out = calllib('Blink_C_wrapper', 'ImageWriteComplete', obj.board_id, obj.timeout_ms);
         end
     end
 end
