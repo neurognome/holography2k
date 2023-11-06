@@ -666,7 +666,7 @@ for i = 1:planes
         for j= 1:holos_this_plane
             multi_pwr = size(slm_coords{i}{j},1) * pwr;
             % Function_Feed_SLM(Setup.SLM, holos2shoot{i}{j});
-            slm.feed(holos2shoot{i}{j})
+            slm.feed(holos2shoot{i}{j});
             
             requestPower(multi_pwr,masterSocket)
             

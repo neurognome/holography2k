@@ -16,17 +16,22 @@ classdef MeadowlarkOneK < SLM
         board_id
         
         % lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1064.LUT';
-        lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at1030.lut';
+        lut_file
         reg_lut = libpointer('string');
     end
 
     methods
-        function obj = MeadowlarkOneK(board_id)
+        function obj = MeadowlarkOneK(board_id, lut)
             if nargin < 1 || isempty(board_id)
                 board_id = 1;
             end
-            obj = obj@SLM();
 
+            if nargin < 2 || isempty(lut)
+                error('Give me a path to your LUT');
+            end
+            obj = obj@SLM();
+            
+            obj.lut_file = lut;
             obj.board_id = board_id; 
             obj.Nx = 1024;
             obj.Ny = 1024;

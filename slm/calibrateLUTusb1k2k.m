@@ -1,22 +1,26 @@
 %%
 counts = 1000;
-pauseBetweenReads = 3;
+pauseBetweenReads = .5;
 
 instrreset()
 vinfo = instrhwinfo('visa','ni');
 v = eval(vinfo.ObjectConstructorName{1});
 fopen(v);
-%%
 
-% Example usage of Blink_SDK_C.dll
-% Meadowlark Optics Spatial Light Modulators
-% last updated: September 10 2020
+board_number = 2; % 1 if 900, 2 if 1030/1100
+% slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\1024x1024_linearVoltage.lut');
 
-% Load the DLL
-% Blink_C_wrapper.dll, Blink_SDK.dll, ImageGen.dll, FreeImage.dll and wdapi1021.dll
-% should all be located in the same directory as the program referencing the
-% library
-
+% %%
+% 
+% % Example usage of Blink_SDK_C.dll
+% % Meadowlark Optics Spatial Light Modulators
+% % last updated: September 10 2020
+% 
+% % Load the DLL
+% % Blink_C_wrapper.dll, Blink_SDK.dll, ImageGen.dll, FreeImage.dll and wdapi1021.dll
+% % should all be located in the same directory as the program referencing the
+% % library
+% 
 addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus'));
 addpath(genpath('C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\SDK'));
 addpath(genpath('C:\Program Files\HOLOEYE Photonics\SLM Display SDK (MATLAB) v1.1.1\win64'))
@@ -24,8 +28,8 @@ addpath(genpath('C:\Program Files\HOLOEYE Photonics\SLM Display SDK (MATLAB) v1.
 if ~libisloaded('Blink_C_wrapper')
     loadlibrary('Blink_C_wrapper.dll', 'Blink_C_wrapper.h');
 end
-
-% This loads the image generation functions
+% 
+% % This loads the image generation functions
 if ~libisloaded('ImageGen')
     loadlibrary('ImageGen.dll', 'ImageGen.h');
 end
@@ -62,18 +66,21 @@ if constructed_okay.value ~= 1
 end
 %%
 if num_boards_found.value > 0 
-    board_number = 1;
     disp('Blink SDK was successfully constructed');
     fprintf('Found %u SLM controller(s)\n', num_boards_found.value);
-    
+
 	% set some dimensions
 	height = calllib('Blink_C_wrapper', 'Get_image_height', board_number);
     width = calllib('Blink_C_wrapper', 'Get_image_width', board_number);
 	depth = calllib('Blink_C_wrapper', 'Get_image_depth', board_number); %bits per pixel
 	Bytes = depth/8;
+    % height = slm.Ny;
+    % width = slm.Nx;
+    % depth = slm.bit_depth;
+    Bytes = depth/8;
     NumDataPoints = 256;
     NumRegions = 1;
-	
+
     % To measure the raw optical response we want to linearly increment the voltage on the pixels by using a linear LUT
     if ((width == 512) && (depth == 8))
 		calllib('Blink_C_wrapper', 'Load_LUT_file', board_number, 'C:\\Program Files\\Meadowlark Optics\\Blink OverDrive Plus\\LUT Files\\512x512_linearVoltage.LUT');
@@ -87,20 +94,20 @@ if num_boards_found.value > 0
     if width == 1024
 		calllib('Blink_C_wrapper', 'Load_LUT_file', board_number, 'C:\\Program Files\\Meadowlark Optics\\Blink OverDrive Plus\\LUT Files\\1024x1024_linearVoltage.LUT');
     end
-     
+
     %allocate arrays for our images
     Image = libpointer('uint8Ptr', zeros(width*height*Bytes,1));
-	
+
 	% ***ALWAYS*** use a blank wavefront correction when calibrating a LUT
 	WFC = libpointer('uint8Ptr', zeros(width*height*Bytes,1));
 
     % Create an array to hold measurements from the analog input (AI) board
     AI_Intensities = zeros(NumDataPoints,2);
-    
+
        %When calibrating you write a series of stripes to the SLM. Use the
     %summary below to set the reference, the variable grayscale, and the
     %value you step the variable grayscale by.
-    
+
     %1920x1152, reference = 0, variable = 0 to 255 in steps of +1
     %512x512 8-bit, reference = 255, variable = 255 to 0 in steps of -1
     %512x512 16-bit, reference = 63353, variable = 63353 to 0 in steps of -256
@@ -108,7 +115,7 @@ if num_boards_found.value > 0
     Reference = 255;
     Variable = 255;
     StepBy = -1;
-    
+
     % Use a high frequency grating to separate the 0th and 1st orders, a
     % period of 8 is generally good
     PixelsPerStripe = 8;
@@ -118,13 +125,17 @@ if num_boards_found.value > 0
     calllib('ImageGen', 'Generate_Stripe', Image, WFC, width, height, depth, Reference, testGreyLevel, PixelsPerStripe, RGB);
     calllib('ImageGen', 'Mask_Image', Image, width, height, depth, Region, NumRegions, RGB);
     calllib('Blink_C_wrapper', 'Write_image', board_number, Image, width*height*Bytes, wait_For_Trigger, flip_immediate, OutputPulseImageFlip, OutputPulseImageRefresh, timeout_ms);
-	
+
     input('Press enter when you align everything. There should be stripes on the SLM.')
-    
+
 	% begin with the SLM blank
     calllib('Blink_C_wrapper', 'Write_image', board_number, zeros([1024, 1024], 'uint8'), width*height*Bytes, wait_For_Trigger, flip_immediate, OutputPulseImageFlip, OutputPulseImageRefresh, timeout_ms);
 	calllib('Blink_C_wrapper', 'ImageWriteComplete', board_number, timeout_ms);
-	
+
+% slm.stop();
+% slm.wait_for_trigger = 0;
+% slm.start();
+
     pause(1)
     
  
@@ -151,7 +162,7 @@ if num_boards_found.value > 0
             
             %write the image
             calllib('Blink_C_wrapper', 'Write_image', board_number, Image, width*height*Bytes, wait_For_Trigger, flip_immediate, OutputPulseImageFlip, OutputPulseImageRefresh, timeout_ms);
-            
+            % slm.feed(Image);
             %let the SLM settle for 10 ms
             pause(0.1);
             c = c+1;
@@ -188,14 +199,13 @@ if num_boards_found.value > 0
         filepath = fullfile(usrhome, 'Desktop', 'meadowlark', 'LUT files Raw', filename)
         csvwrite(filepath, AI_Intensities);  
     end
-    
+end
+% slm.stop()    
 
      
-    % Always call Delete_SDK before exiting
+    % % Always call Delete_SDK before exiting
+    
     calllib('Blink_C_wrapper', 'Delete_SDK');
-end
-
-%destruct
 if libisloaded('Blink_C_wrapper')
     unloadlibrary('Blink_C_wrapper');
 end

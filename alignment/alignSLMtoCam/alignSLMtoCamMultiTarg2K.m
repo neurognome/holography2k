@@ -30,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 1100;
+calibration_wavelength = 900;
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -41,17 +41,7 @@ delete(gcp('nocreate'));
 parpool('IdleTimeout', 360);
 
 % setup slms
-meadowlark = MeadowlarkOneK();
-holoeye = HoloeyePLUTO();
-
-switch calibration_wavelength
-    case 900
-        slm = holoeye;
-    case 1100
-        slm = meadowlark;
-    case 1030
-        slm = meadowlark;
-end
+slm = get_slm(calibration_wavelength);
 
 slm.stop();
 slm.wait_for_trigger = 0;
@@ -110,7 +100,7 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 1;
+pwr = 2;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%
@@ -166,11 +156,11 @@ sutter.moveToRef();
 
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
-reloadHolos = 1; % CHANGE THIS IF "RECALIFBRATION"
+reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.15 0.88];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-slmYrange = [0.07 0.9];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
+slmXrange = [0.1 0.77];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+slmYrange = [0.05 0.88];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
 % set Z range
 slmZrange = [-0.055 0.03];

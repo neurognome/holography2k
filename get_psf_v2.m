@@ -4,7 +4,7 @@ clear
 close all
 clc
 %%
-wavelength = 1100;
+wavelength = 900;
 tBegin = tic;
 
 disp('Setting up stuff...');
@@ -22,18 +22,8 @@ if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
     g= gpuDevice;
 end
-% setup slms
-meadowlark = MeadowlarkOneK();
-holoeye = HoloeyePLUTO();
 
-switch wavelength
-    case 900
-        slm = holoeye;
-    case 1100
-        slm = meadowlark;
-    case 1030
-        slm = meadowlark;
-end
+slm = get_slm(wavelength);
 
 slm.stop();
 slm.wait_for_trigger = 0;
@@ -81,7 +71,7 @@ fprintf('done.\r')
 % this power will be used throughout the calibration and is appropriately
 % scaled for multi-target holograms and hole-burning
 
-pwr = .5;
+pwr = .75;
 slmCoords = [0.4 0.4 0 1]; % scanimage alignd: [.4 .6 0.07 1]; % 
 
 
