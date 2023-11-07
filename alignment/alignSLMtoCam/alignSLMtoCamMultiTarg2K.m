@@ -100,7 +100,7 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 2;
+pwr = 1;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%
@@ -159,8 +159,8 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.1 0.77];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-slmYrange = [0.05 0.88];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
+slmXrange = [0.15 0.99];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+slmYrange = [0.07 0.9];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
 % set Z range
 slmZrange = [-0.055 0.03];
@@ -502,7 +502,7 @@ for i = 1:planes
             continue
         end
         
-        multi_pwr = size(slmMultiCoordsIndiv{i}{j},2) * pwr;
+        multi_pwr = size(slmMultiCoordsIndiv{i}{j},2) * pwr * 2;
         slm.feed(multiHolos{i}(j, :, :));
         
         target_ref = targListIndiv{i}{j}(1);
@@ -537,6 +537,9 @@ for i = 1:planes
             frame =  max(frame-Bgd,0);
             % frame = imgaussfilt(frame,2);
             dataUZ(:,:,k) =  frame;
+            figure(5)
+            imagesc(frame)
+            drawnow
         end
         
         % move sutter back to reference
@@ -607,7 +610,68 @@ fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
 
 process_holograms
 
-%% Burn Holes
+
+%% Plot Hole Burn Stuff
+tCompileBurn = tic;
+
+%figure(6);
+%scatter(XYpts(1,:),XYpts(2,:),'o');
+
+figure(4); clf
+
+clear XYtarg SLMtarg
+for i = 1:numel(zsToBlast)
+    a = mod(i-1,gridSide);
+    b = floor((i-1)/gridSide);
+    
+    XYuse = bsxfun(@plus,XYpts,([xOff*a yOff*b])');
+    optoZ = zsToBlast(i);
+    
+    zOptoPlane = ones([1 size(XYuse,2)])*optoZ;
+    
+    Ask = [XYuse; zOptoPlane];
+    estCamZ = polyvaln(OptZToCam,Ask');
+    meanCamZ(i) = nanmean(estCamZ); %for use by sutter
+    Ask = [XYuse; estCamZ'];
+    estSLM = function_Eval3DCoC(camToSLM,Ask');
+    estPower = polyvaln(SLMtoPower,estSLM);
+    
+    % negative DE restrictions
+    ExcludeBurns = ((estPower<=0) | (estSLM(:,1)<slmXrange(1)) | (estSLM(:,1)>slmXrange(2)) | (estSLM(:,2)<slmYrange(1)) | (estSLM(:,2)>slmYrange(2))); %don't shoot if you don't have the power
+    estSLM(ExcludeBurns,:)=[];
+    estPower(ExcludeBurns)=[];
+    XYuse(:,ExcludeBurns)=[];
+    zOptoPlane(ExcludeBurns)=[];
+    estCamZ(ExcludeBurns)=[];
+    
+    XYtarg{i} = [XYuse; zOptoPlane];
+    SLMtarg{i} = [estSLM estPower];
+    
+    subplot(1,2,1)
+    scatter3(XYuse(1,:),XYuse(2,:),estCamZ,[],estPower,'filled')
+    
+    hold on
+    subplot (1,2,2)
+    scatter3(estSLM(:,1),estSLM(:,2),estSLM(:,3),[],estPower,'filled')
+    
+    disp([num2str(min(estSLM(:,3))) ' ' num2str(max(estSLM(:,3)))])
+    hold on
+end
+
+subplot(1,2,1)
+title('Targets in Camera Space')
+zlabel('Depth \mum')
+xlabel('X pixels')
+ylabel('Y pixels')
+
+subplot(1,2,2)
+title('Targets in SLM space')
+xlabel('X SLM')
+ylabel('Y SLM')
+zlabel('Z SLM')
+c = colorbar;
+c.Label.String = 'Estimated Power';
+
 disp('Compiling Holos To Burn')
 
 blankHolo = zeros(1024, 1024);
@@ -802,13 +866,13 @@ pathToUse = 'C:\Users\holos\Documents\SLM_Management\Calib_Data';
 disp('Saving...')
 tSave = tic;
 
-save(fullfile(pathToUse,[date '_Calib_' calibration_wavelength '.mat']),'CoC')
+save(fullfile(pathToUse,[date '_Calib_' num2str(calibration_wavelength) '.mat']),'CoC')
 save(fullfile(pathToUse,'ActiveCalib.mat'),'CoC')
 
 pth = 'C:\Users\holos\Documents\calibs';
-save(fullfile(pth,[date '_Calib_' calibration_wavelength '.mat']),'CoC')
+save(fullfile(pth,[date '_Calib_' num2str(calibration_wavelength) '.mat']),'CoC')
 save(fullfile(pth,'ActiveCalib.mat'),'CoC')
-save(fullfile(pth,['CalibWorkspace_' calibration_wavelength '.mat']), '-v7.3');
+save(fullfile(pth,['CalibWorkspace_' num2str(calibration_wavelength) '.mat']), '-v7.3');
 
 
 % times.saveT = toc(tSave);

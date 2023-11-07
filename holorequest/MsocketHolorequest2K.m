@@ -1,4 +1,6 @@
-function MsocketHolorequest2K(masterSocket)
+% function MsocketHolorequest2K()
+HoloPrepCode;
+
 timeout = 1700;
 
 addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
@@ -22,25 +24,10 @@ load(Setup.calib,'CoC');
 disp(['Successfully loaded CoC from: ', Setup.calib])
 %% now start msocket communication
  
-% disp('Waiting for msocket communication')
-% 
-% srvsock = mslisten(42121); %3027
-% masterSocket = msaccept(srvsock,6);
-% msclose(srvsock)
-% sendVar = 'A';
-% mssend(masterSocket, sendVar);
-% 
-% invar = [];
-% while ~strcmp(invar,'B')
-%     invar = msrecv(masterSocket,.5);
-% end
-% 
-% disp('communication from Master To Holo Established')
-
 x = 1;     
 HRin = []; 
 while x>0
-    HRin = msrecv(masterSocket,.5);
+    HRin = control.io.read();%msrecv(control.io.socket,.5);
 
     if ~isempty(HRin);
         disp('new File Detected - running HoloRequest')

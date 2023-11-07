@@ -382,6 +382,7 @@ out.powerFitmodelTerms = modelterms;
 
 %module to restrict burn grid to most likely SI FOV.
 %added 7/20/19 -Ian
+
 binarySI = ~isnan(SIpeakVal);
 SImatchProb = mean(binarySI');%probability that point was detected aka that was in SI range
 
@@ -616,7 +617,7 @@ clear peakValue4 peakDepth4 peakFWHM4 dataUZ4
 background = bas.grab(20);
 % background = function_BasGetFrame(Setup,20);
 range = 6;
-box_range = 20; % distance threshold is set to 100
+box_range = 100; % distance threshold is set to 100
 disp('shooting!')
 
 planes = numel(slm_coords);
@@ -664,7 +665,7 @@ for i = 1:planes
         
         
         for j= 1:holos_this_plane
-            multi_pwr = size(slm_coords{i}{j},1) * pwr;
+            multi_pwr = size(slm_coords{i}{j},1) * pwr*2;
             % Function_Feed_SLM(Setup.SLM, holos2shoot{i}{j});
             slm.feed(holos2shoot{i}{j});
             
@@ -689,7 +690,7 @@ for i = 1:planes
             subplot(ro,co,j)
             imagesc(frame)
             colorbar
-            caxis([0 150]);
+            caxis([0 10]);
             title({['Live Data. Depth ' num2str(round(fineUZ(k)))] ; ['Plane: ' num2str(i) '. Set ' num2str(j)]})
             drawnow
             
@@ -734,6 +735,7 @@ for i = 1:planes
                 % method 1 - rely on XY from first step
                 targ_stack = double(squeeze(max(max(dataUZ(targX,targY,:)))));
                 mxProj = max(dataUZ(targX,targY,:),[],3);
+     
                 [ holo_x,holo_y ] =function_findcenter(mxProj );
                 xyFine4{i}{j}(:,targ) = [holo_x+(min(targX)), holo_y+(min(targY))];
             catch
@@ -1128,63 +1130,3 @@ fprintf(['FWHM in the typical useable volume (0 to 100um) is: ' num2str(mean(FWH
 
 
 finalFitsT = toc(denseFitsTimer);
-%% Plot Hole Burn Stuff
-tCompileBurn = tic;
-
-%figure(6);
-%scatter(XYpts(1,:),XYpts(2,:),'o');
-
-figure(4); clf
-
-clear XYtarg SLMtarg
-for i = 1:numel(zsToBlast)
-    a = mod(i-1,gridSide);
-    b = floor((i-1)/gridSide);
-    
-    XYuse = bsxfun(@plus,XYpts,([xOff*a yOff*b])');
-    optoZ = zsToBlast(i);
-    
-    zOptoPlane = ones([1 size(XYuse,2)])*optoZ;
-    
-    Ask = [XYuse; zOptoPlane];
-    estCamZ = polyvaln(OptZToCam,Ask');
-    meanCamZ(i) = nanmean(estCamZ); %for use by sutter
-    Ask = [XYuse; estCamZ'];
-    estSLM = function_Eval3DCoC(camToSLM,Ask');
-    estPower = polyvaln(SLMtoPower,estSLM);
-    
-    % negative DE restrictions
-    ExcludeBurns = ((estPower<=0) | (estSLM(:,1)<slmXrange(1)) | (estSLM(:,1)>slmXrange(2)) | (estSLM(:,2)<slmYrange(1)) | (estSLM(:,2)>slmYrange(2))); %don't shoot if you don't have the power
-    estSLM(ExcludeBurns,:)=[];
-    estPower(ExcludeBurns)=[];
-    XYuse(:,ExcludeBurns)=[];
-    zOptoPlane(ExcludeBurns)=[];
-    estCamZ(ExcludeBurns)=[];
-    
-    XYtarg{i} = [XYuse; zOptoPlane];
-    SLMtarg{i} = [estSLM estPower];
-    
-    subplot(1,2,1)
-    scatter3(XYuse(1,:),XYuse(2,:),estCamZ,[],estPower,'filled')
-    
-    hold on
-    subplot (1,2,2)
-    scatter3(estSLM(:,1),estSLM(:,2),estSLM(:,3),[],estPower,'filled')
-    
-    disp([num2str(min(estSLM(:,3))) ' ' num2str(max(estSLM(:,3)))])
-    hold on
-end
-
-subplot(1,2,1)
-title('Targets in Camera Space')
-zlabel('Depth \mum')
-xlabel('X pixels')
-ylabel('Y pixels')
-
-subplot(1,2,2)
-title('Targets in SLM space')
-xlabel('X SLM')
-ylabel('Y SLM')
-zlabel('Z SLM')
-c = colorbar;
-c.Label.String = 'Estimated Power';

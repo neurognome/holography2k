@@ -32,7 +32,7 @@ mssend(SISocket,'end');
 
 tLoad = tic;
 pth = 'K:\Calib\Temp';
-files = dir(pth);
+files = dir(sprintf('%s\\*.tif', pth));
 
 baseN = eval(baseName);
 
@@ -44,7 +44,7 @@ nBurnHoles = size(XYtarg{1},2);
 baseFr = mean(fr(:,:,1:nOpto:end),3);%mean(fr(:,:,1:nOpto:end),3);%Probably more accurate to just do correct zoom, but sometimes having difficulty
 
 k=1;c=0; SIXYZ =[];
-for i=4:numel(files)
+for i=1:numel(files)
     t = tic;
     fprintf(['Loading/Processing Frame ' num2str(i)]);
     try
