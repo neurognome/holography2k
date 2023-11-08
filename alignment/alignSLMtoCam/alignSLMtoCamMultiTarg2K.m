@@ -100,7 +100,7 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 1;
+pwr = 0.5;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%

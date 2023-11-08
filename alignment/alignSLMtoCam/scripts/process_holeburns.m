@@ -4,7 +4,7 @@ tMov = tic;
 
 %on ScanImage Computer
 % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''K:\Calib\Temp''';
+destination = '''K:\Calib\Temp2''';
 source = '''D:\Calib\Temp\calib*''';
 
 %clear invar
@@ -25,18 +25,15 @@ MovT= toc(tMov);
 
 %% read/compute frame
 
-
-%%
 mssend(SISocket,'end');
-%%
 
 tLoad = tic;
-pth = 'K:\Calib\Temp';
+pth = 'K:\Calib\Temp2';
 files = dir(sprintf('%s\\*.tif', pth));
 
 baseN = eval(baseName);
 
-[dummy fr] = bigread3(fullfile(pth,files(3).name) );
+[dummy fr] = bigread3(fullfile(pth,files(1).name) );
 
 nOpto = numel(zsToBlast);
 nBurnHoles = size(XYtarg{1},2);
@@ -44,7 +41,7 @@ nBurnHoles = size(XYtarg{1},2);
 baseFr = mean(fr(:,:,1:nOpto:end),3);%mean(fr(:,:,1:nOpto:end),3);%Probably more accurate to just do correct zoom, but sometimes having difficulty
 
 k=1;c=0; SIXYZ =[];
-for i=1:numel(files)
+for i=2:numel(files)
     t = tic;
     fprintf(['Loading/Processing Frame ' num2str(i)]);
     try

@@ -773,7 +773,7 @@ FWHMValExtra = [];
 peakDepthValExtra =[];
 
 for i=1:planes
-    for j=1:holos_this_plane
+    for j=1:numel(slm_coords{i})
         for targ = 1:size(slm_coords{i}{j},1)
             c=c+1;
             slmXYZextra(c,:) = slm_coords{i}{j}(targ,:);
