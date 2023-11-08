@@ -1,22 +1,16 @@
-function order = ShootDoubleSequencesMsocket2K(slm, sequences, control)
+function order = ShootSequencesMsocket2K(slm, sequences, control)
 %updated 1/19/21 to inlcude output;
 
-if numel(slm) ~= numel(sequences)
-    disp('Number sequences must equal number SLMs')
-    return
-end
-N = numel(slm);
-
-control.flush();
+flushMSocket(masterSocket);
 
 sendVar = 'C';
-control.io.send(sendVar);
+mssend(masterSocket,sendVar);
 
 
 order = [];
 disp('waiting for socket to send sequence number')
 while isempty(order)
-    order = control.io.read(0.5); %msrecv(masterSocket,.5);
+    order = msrecv(masterSocket,.5);
 end
 disp(['received sequence of length ' num2str(length(order))]);
 
@@ -24,9 +18,8 @@ disp(['received sequence of length ' num2str(length(order))]);
 if any(order>size(sequences,3))
     disp('ERROR: Sequence error. blanking SLM...')
     blank = zeros(size(sequences,1),size(sequences,2));
-    for ii = 1:N
-        slm(ii).feed(blank);
-    end
+    outcome = slm.feed(blank);
+    % outcome = Function_Feed_SLM(Setup.SLM, blank);
     return
 end
 
@@ -42,14 +35,13 @@ counter = 1;
 useSmallOrder =1;
 
 if useSmallOrder
-    for ii = 1:N
-        [itemsUsed, ~, smallOrder] = unique(order);
-        smallSeq = sequences{ii}(:,:,itemsUsed);
-
-        order = smallOrder;
-        sequences{ii} = smallSeq;
-    end
+    [itemsUsed, ~, smallOrder] = unique(order);
+    smallSeq = sequences(:,:,itemsUsed);
+    
+    order = smallOrder;
+    sequences = smallSeq;
 end
+
 
 
 saveDetails =1;
@@ -59,9 +51,7 @@ if saveDetails
     while ~timeout && counter<=length(order)
         %disp(['now queuing hologram ' num2str(order(counter))])
         t=tic;
-        for ii = 1:N
-            outcome(ii) = slm(ii).feed(sequences{ii}(:, :, order(counter)));
-        end
+       outcome = slm.feed(sequences(:, :, order(counter)));
         T(counter)=toc(t);
         
         t = tic;
@@ -69,7 +59,7 @@ if saveDetails
         
         T2(counter)=toc(t);
         O(counter) = outcome;
-        if all(outcome == -1)
+        if outcome == -1
             timeout = true;
         end
         counter = counter+1;
@@ -79,10 +69,8 @@ else
     while ~timeout && counter<=length(order)
         %disp(['now queuing hologram ' num2str(order(counter))])
         % outcome = Function_Feed_SLM(Setup.SLM, sequences(:,:,order(counter)));
-        for ii = 1:N
-            outcome(ii) = slm(ii).feed(sequences{ii}(:, :, order(counter)));
-        end
-        if all(outcome == -1)
+        outcome = slm.feed(sequences(:, :, order(counter)));
+        if outcome == -1
             timeout = true;
         end
         counter = counter+1;
