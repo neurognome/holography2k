@@ -54,7 +54,7 @@ end
 
 [AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
 
-mssend(masterSocket,DE_list);  
+control.io.send(DE_list)
 disp('Sent DE to master');
 
 %%Compute SLM Coordinates

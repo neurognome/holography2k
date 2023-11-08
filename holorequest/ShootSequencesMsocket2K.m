@@ -7,7 +7,7 @@ if numel(slm) ~= numel(sequences)
 end
 N = numel(slm);
 
-control.flush();
+control.io.flush();
 
 sendVar = 'C';
 control.io.send(sendVar);

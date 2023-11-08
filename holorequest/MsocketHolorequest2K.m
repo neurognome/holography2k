@@ -36,7 +36,7 @@ fprintf('Both holorequests received.\n')
 sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
 slm = [get_slm(900), get_slm(1100)];
 % flushMSocket(masterSocket)
-control.flush();
+control.io.flush();
 
 % slm = HoloeyePLUTO();
 for s = slm
