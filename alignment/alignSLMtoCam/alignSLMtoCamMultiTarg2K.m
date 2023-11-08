@@ -30,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 900;
+calibration_wavelength = 1100;
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -100,7 +100,7 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 0.5;
+pwr = 1.2;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%
@@ -112,7 +112,7 @@ slmCoords = [.4 .4 0.01 1]; % 0.
 
 blankHolo = zeros([1024 1024]);
 
-slm.feed(Holo)
+slm.feed(Holo);
 
 mssend(masterSocket,[pwr/1000 1 1]); % again, check if this is mW or W
 
@@ -159,7 +159,7 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.15 0.99];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+slmXrange = [0.15 0.88];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
 slmYrange = [0.07 0.9];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
 % set Z range

@@ -1,4 +1,4 @@
-function order = ShootDoubleSequencesMsocket2K(slm, sequences, control)
+function order = ShootSequencesMsocket2K(slm, sequences, control)
 %updated 1/19/21 to inlcude output;
 
 if numel(slm) ~= numel(sequences)
@@ -20,8 +20,8 @@ while isempty(order)
 end
 disp(['received sequence of length ' num2str(length(order))]);
 
-
-if any(order>size(sequences,3))
+% if any(order>size(sequences,3))
+if any(max(order) > cellfun(@(x) size(x,3), sequences))
     disp('ERROR: Sequence error. blanking SLM...')
     blank = zeros(size(sequences,1),size(sequences,2));
     for ii = 1:N
@@ -33,7 +33,7 @@ end
 T=zeros([1 10E5]);
 T2=zeros([1 10E5]);
 
-O = zeros([1 10E5]);
+O = zeros([N 10E5]);
 % t=tic;
 
 timeout = false;
@@ -68,7 +68,7 @@ if saveDetails
         % outcome = calllib('Blink_C_wrapper', 'ImageWriteComplete', 1, SLM.timeout_ms);
         
         T2(counter)=toc(t);
-        O(counter) = outcome;
+        O(:, counter) = outcome';
         if all(outcome == -1)
             timeout = true;
         end
