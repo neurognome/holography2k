@@ -26,35 +26,30 @@ disp(['Successfully loaded CoC from: ', Setup.calib])
 CoC_900 = importdata(Setup.calib);
 CoC_1100 = importdata(Setup.calib); 
 
+fprintf('Waiting for holorequest for 900nm...\n')
 hololist_900 = generate_holograms(control, Setup, CoC_900); 
+fprintf('Waiting for holorequest for 1100nm...\n')
 hololist_1100 = generate_holograms(control, Setup, CoC_1100);
+fprintf('Both holorequests received.\n')
 
 %totally remove sequences as a thing that exists basically
-sequences = uint8(hololist); %shouldn't change anything added 9/14/21
-
+sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
+slm = [get_slm(900), get_slm(1100)];
 % flushMSocket(masterSocket)
 control.flush();
 
-slm = MeadowlarkOneK();
 % slm = HoloeyePLUTO();
-slm.stop();
-slm.wait_for_trigger = 1; % set settintgs
-slm.timeout_ms = timeout;
+for s = slm
+    s.stop();
+    s.wait_for_trigger = 1; % set settintgs
+    s.timeout_ms = timeout;
 
-slm.start();
-% 
-% [Setup.SLM ] = Function_Stop_SLM( Setup.SLM );
-% Setup.SLM.wait_For_Trigger = 1;
-% Setup.SLM.timeout_ms = timeout;
-% [ Setup.SLM ] = Function_Start_SLM( Setup.SLM );
+    s.start();
+end
 
-%sendVar='B';
-%mssend(masterSocket,sendVar)
 orderBackup=[]; %Sequence list is archived in case the daq errors. normally disposed of after exp. 1/19/21
 c=1;
 while true
-    orderBackup{c} = ShootSequencesMsocket2K(slm, sequences, masterSocket);
+    orderBackup{c} = ShootSequencesMsocket2K(slm, sequences, control);
     c=c+1;
 end
-
-    
