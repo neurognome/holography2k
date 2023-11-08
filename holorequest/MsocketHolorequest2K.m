@@ -23,8 +23,8 @@ disp('Loading current calibration...')
 load(Setup.calib,'CoC');
 disp(['Successfully loaded CoC from: ', Setup.calib])
 %% now start msocket communication
-CoC_900 = importdata('calib1');
-CoC_1100 = importdata('calib1'); 
+CoC_900 = importdata(Setup.calib);
+CoC_1100 = importdata(Setup.calib); 
 
 hololist_900 = generate_holograms(control, Setup, CoC_900); 
 hololist_1100 = generate_holograms(control, Setup, CoC_1100);
