@@ -1,6 +1,9 @@
 % function MsocketHolorequest2K()
+% choose wavelengths
+
+wavelength = [900, 1100]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 if ~exist('control') || isempty(control.controller)
-HoloPrepCode;
+    HoloPrepCode;
 end
 
 timeout = 1700;
@@ -18,25 +21,43 @@ cycleiterations = 1; % Change this number to repeat the sequence N times instead
 %Overwrite delay duration
 Setup.TimeToPickSequence = 0.05;    %second window to select sequence ID
 Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
-% calibID = 1;                        % Select the calibration ID (z1=1 but does not exist, Z1.5=2, Z1 sutter =3);
 Setup.calib = 'C:\Users\holos\Documents\calibs\ActiveCalib.mat'; % here we need to somehow feed multiple calibrations?
 
-disp('Loading current calibration...')
-load(Setup.calib,'CoC');
-disp(['Successfully loaded CoC from: ', Setup.calib])
 %% now start msocket communication
-CoC_900 = importdata(Setup.calib);
-CoC_1100 = importdata(Setup.calib); 
+calib = [];
+for w = wavelength
+    switch w
+        case 900
+            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+        case 1100
+            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+        case 1030
+            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+    end
+   calib = [calib, c]; 
+end
 
-fprintf('Waiting for holorequest for 900nm...\n')
-hololist_900 = generate_holograms(control, Setup, CoC_900); 
-fprintf('Waiting for holorequest for 1100nm...\n')
-hololist_1100 = generate_holograms(control, Setup, CoC_1100);
-fprintf('Both holorequests received.\n')
+sequences = {};
+for w = 1:numel(wavelength)
+    fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
+    hololist = generate_holograms(control, Setup, calib(w));
+    sequences{end+1} = uint(hololist);
+end
+
+% fprintf('Waiting for holorequest for 900nm...\n')
+% hololist_900 = generate_holograms(control, Setup, CoC_900); 
+% fprintf('Waiting for holorequest for 1100nm...\n')
+% hololist_1100 = generate_holograms(control, Setup, CoC_1100);
+fprintf('All holorequests received.\n')
 
 %totally remove sequences as a thing that exists basically
-sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
-slm = [get_slm(900), get_slm(1100)];
+% sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
+% slm = [get_slm(900), get_slm(1100)];
+slm = [];
+for w = wavelength
+    slm = [slm, get_slm(w)];
+end
+
 % flushMSocket(masterSocket)
 control.io.flush();
 %%
