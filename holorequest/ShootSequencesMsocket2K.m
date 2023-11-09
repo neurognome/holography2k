@@ -37,15 +37,15 @@ disp(['received sequence of length ' num2str(length(order))]);
 % 
 % disp('done')
 % if any(order>size(sequences,3))
-% if any(max(order) > cellfun(@(x) size(x,3), sequences))
-%     disp('ERROR: Sequence error. blanking SLM...')
-%     blank = zeros(size(sequences,1),size(sequences,2));
-%     for ii = 1:N
-%         slm(ii).feed(blank);
-%     end
-%     return
-% end
-% 
+if any(cellfun(@max, order) > cellfun(@(x) size(x,3), sequences))
+    disp('ERROR: Sequence error. blanking SLM...')
+    blank = zeros(size(sequences,1),size(sequences,2));
+    for ii = 1:N
+        slm(ii).feed(blank);
+    end
+    return
+end
+%
 timeout = false;
 counter = 1;
 % % while counter <= length(order)
@@ -55,15 +55,16 @@ counter = 1;
 % %     counter = counter + 1;
 % % end
 % 
-while ~timeout && counter <= length(order)
+while ~timeout && counter <= max(cellfun(@length, order))
 outcome = zeros(N, 1);
-    for ii = 1:2
-        slm(ii).feed(sequences{ii}(:, :, order(counter)));
+    for ii = 1:N
+        slm(ii).feed(sequences{ii}(:, :, order{ii}(counter)));
     end
 
-    for ii = 1:2
+    for ii = 1:N
         outcome(ii) = slm(ii).wait();
     end
+
     if all(outcome == -1)
         timeout=true;
     end

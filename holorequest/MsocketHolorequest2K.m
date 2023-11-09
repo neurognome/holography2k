@@ -1,7 +1,7 @@
 % function MsocketHolorequest2K()
 % choose wavelengths
 
-wavelength = [900, 1100]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+wavelength = [1100]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 if ~exist('control') || isempty(control.controller)
     HoloPrepCode;
 end
@@ -28,20 +28,21 @@ calib = [];
 for w = wavelength
     switch w
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\07-Nov-2023_Calib_900.mat');
         case 1100
-            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\08-Nov-2023_Calib_1100.mat');
         case 1030
-            c = importdata('C:\Users\holos\Documents\calibs\ActiveCalib.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
     end
    calib = [calib, c]; 
 end
 
+control.io.flush();
 sequences = {};
 for w = 1:numel(wavelength)
     fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
     hololist = generate_holograms(control, Setup, calib(w));
-    sequences{end+1} = uint(hololist);
+    sequences{end+1} = uint8(hololist);
 end
 
 % fprintf('Waiting for holorequest for 900nm...\n')
