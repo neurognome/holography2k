@@ -82,10 +82,23 @@ classdef MeadowlarkOneK < SLM
             
             obj.state = 0;
         end
+        
+        function preload(obj, frames)
+            calllib('Blink_C_wrapper', 'Load_sequence', obj.board_id, frames, obj.Nx*obj.Ny, size(frames, 3),obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
+        end
 
-        function out = feed(obj, frame)
-            calllib('Blink_C_wrapper', 'Write_image', obj.board_id, frame, obj.Nx*obj.Ny, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
+        function out = flip(obj, frame_idx)
+            calllib('Blink_C_wrapper', 'Select_image', obj.board_id, frame_idx, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
             out = calllib('Blink_C_wrapper', 'ImageWriteComplete', obj.board_id, obj.timeout_ms);
+        end
+
+        function feed(obj, frame)
+            calllib('Blink_C_wrapper', 'Write_image', obj.board_id, frame, obj.Nx*obj.Ny, obj.wait_for_trigger,0, 1, 0, obj.timeout_ms);
+        end
+
+        function out = wait(obj)
+                        out = calllib('Blink_C_wrapper', 'ImageWriteComplete', obj.board_id, obj.timeout_ms);
+
         end
     end
 end

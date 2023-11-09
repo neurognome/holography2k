@@ -1,5 +1,7 @@
 % function MsocketHolorequest2K()
+if ~exist('control') || isempty(control.controller)
 HoloPrepCode;
+end
 
 timeout = 1700;
 
@@ -37,7 +39,7 @@ sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anyth
 slm = [get_slm(900), get_slm(1100)];
 % flushMSocket(masterSocket)
 control.io.flush();
-
+%%
 % slm = HoloeyePLUTO();
 for s = slm
     s.stop();

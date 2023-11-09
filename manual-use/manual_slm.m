@@ -6,7 +6,7 @@ Setup.GSoffset=0;
 Setup.verbose =0;
 % Setup.useGPU = 0;
 %% choose one
-wavelength = 900;
+wavelength = 1030;
 slm = get_slm(wavelength);
 blankHolo = zeros([1024 1024]);
 

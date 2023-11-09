@@ -7,6 +7,11 @@ if numel(slm) ~= numel(sequences)
 end
 N = numel(slm);
 
+% for ii = 1:N
+%     slm(ii).preload(sequences{ii});
+% end
+% disp('Preloaded sequences to SLM')
+
 control.io.flush();
 
 sendVar = 'C';
@@ -20,22 +25,44 @@ while isempty(order)
 end
 disp(['received sequence of length ' num2str(length(order))]);
 
+% counter = 1;
+% while counter <= length(order)
+%     for ii = 1:N
+%         slm(ii).flip(order(counter))
+%         disp(['flip' num2str(ii)])
+%     end
+%     disp(counter)
+%     counter = counter + 1;
+% end    
+% 
+% disp('done')
 % if any(order>size(sequences,3))
-if any(max(order) > cellfun(@(x) size(x,3), sequences))
-    disp('ERROR: Sequence error. blanking SLM...')
-    blank = zeros(size(sequences,1),size(sequences,2));
-    for ii = 1:N
-        slm(ii).feed(blank);
-    end
-    return
-end
-
+% if any(max(order) > cellfun(@(x) size(x,3), sequences))
+%     disp('ERROR: Sequence error. blanking SLM...')
+%     blank = zeros(size(sequences,1),size(sequences,2));
+%     for ii = 1:N
+%         slm(ii).feed(blank);
+%     end
+%     return
+% end
+% 
 timeout = false;
 counter = 1;
-
+% % while counter <= length(order)
+% %     for ii = 1:N
+% %         slm(ii).flip(order(counter))
+% %     end
+% %     counter = counter + 1;
+% % end
+% 
 while ~timeout && counter <= length(order)
-    for ii = 1:N
-        outcome(ii) = slm(ii).feed(sequences{ii}(:, :, order(counter)));
+outcome = zeros(N, 1);
+    for ii = 1:2
+        slm(ii).feed(sequences{ii}(:, :, order(counter)));
+    end
+
+    for ii = 1:2
+        outcome(ii) = slm(ii).wait();
     end
     if all(outcome == -1)
         timeout=true;
