@@ -1,7 +1,9 @@
 % function MsocketHolorequest2K()
 % choose wavelengths
+clear; clc
+wavelength = [900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
-wavelength = [1100]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+
 if ~exist('control') || isempty(control.controller)
     HoloPrepCode;
 end

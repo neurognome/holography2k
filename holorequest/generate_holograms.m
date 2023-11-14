@@ -61,8 +61,8 @@ disp('Sent DE to master');
 DEfloor = 0.05;
 
 [SLMCoordinates] = function_SItoSLM(SICoordinates',CoC)';
-disp('BAD SUBTRACTION')
-SLMCoordinates([2], :) = 1 - SLMCoordinates([2], :);
+% disp('BAD SUBTRACTION')
+% SLMCoordinates([2], :) = 1 - SLMCoordinates([2], :);
 
 AttenuationCoeffs =SLMCoordinates(4,:);
 lowDE = AttenuationCoeffs<DEfloor;
