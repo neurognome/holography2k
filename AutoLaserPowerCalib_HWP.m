@@ -8,10 +8,10 @@ clc
 close all;
 
 % fill this in
-wavelength = 900; % 900, 1100, 1030
-used_khz = 70;
+wavelength = 1100; % 900, 1100, 1030
+used_khz = 200;
 aom = 0.30;
-gate = 'none';%'uni'; % or none or normal?
+gate = 'uni';%'uni'; % or none or normal?
 
 save_base = 'C:\Users\holos\Documents\power-calibrations\';
 
@@ -26,7 +26,7 @@ fopen(v);
 
 %% Params
 nsamplesPM = 1000; % counts (at 1000 Hz I think), produces an average
-interStepPause = 0.5; % seconds (0.5 for the fast head)
+interStepPause = 5; % seconds (0.5 for the fast head)
 
 %% initialize the thing
 
