@@ -28,12 +28,24 @@ classdef Pattern < handle
             fprintf('Input %d targets\n', size(targets, 1))
         end
 
+        function out = to_struct(obj)
+            out = struct(obj);
+        end
+
         function out = get.id(obj)
             out = obj.id;
         end
 
         function set.id(obj, id)
             obj.id = id;
+        end
+    end
+
+    methods (Static = true)
+        function out = from_struct(input_struct)
+            for f = fieldnames(input_struct)
+                keyboard
+            end
         end
     end
 end
