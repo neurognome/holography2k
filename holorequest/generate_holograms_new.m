@@ -85,6 +85,24 @@ end
 comm.send(arrayfun(@struct, patterns), 'daq');
 disp('Sent patterns back to DAQ');
 
+ct = 1;
+hololist = zeros(Setup.Nx, Setup.Ny, numel(patterns));
+for p = patterns
+    % for each pattern, we generate a hologram
+    fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
+    si_coords = function_SItoSLM(p.targets, CoC);
+    if holoRequest.spot_radius > 0
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, si_coords, holoRequest.spot_radius);
+    else  % old behavior
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos(Setup, si_coords);
+    end
+
+    ct = ct + 1;
+end
+
+
+
+%{
 %%Compute SLM Coordinates
 DEfloor = 0.05;
 
@@ -301,5 +319,5 @@ else
         hololist(:,:,j) = Hologram;
     end
 end 
-
+%}
 disp('Done')

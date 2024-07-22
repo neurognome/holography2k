@@ -60,6 +60,9 @@ classdef Pattern < handle
         function out = from_struct(input_struct)
             obj = Pattern(input_struct.targets, input_struct.powerbias);
             obj.diffraction_efficiency = input_struct.diffraction_efficiency;
+            if isfield(input_struct, 'id')
+                obj.id = input_struct.id;
+            end
             out = obj;
         end
     end

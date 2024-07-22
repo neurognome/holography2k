@@ -37,13 +37,15 @@ for w = wavelength
    calib = [calib, c]; 
 end
 
-sequences = {};
+holograms = cell(1, numel(wavelength));
 for w = 1:numel(wavelength)
     fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
     hololist = generate_holograms_new(comm, Setup, calib(w));
     % hololist = generate_holograms2D(comm, Setup, calib(w));
-    sequences{end+1} = uint8(hololist);
+    holograms{w} = uint8(hololist);
 end
+% holograms contains the phase masks, 1 x n_slms, each is an Nx x Ny x
+% patterns, each pattern is a specific hologram
 
 fprintf('All holorequests received.\n')
 
@@ -67,7 +69,7 @@ end
 orderBackup=[]; %Sequence list is archived in case the daq errors. normally disposed of after exp. 1/19/21
 c=1;
 while true
-    orderBackup{c} = ShootSequencesMsocket2K(slm, sequences, comm);
+    orderBackup{c} = ShootSequencesMsocket2K(slm, holograms, comm);
     c=c+1;
 end
 
