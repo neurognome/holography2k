@@ -76,11 +76,17 @@ SICoordinates=SICoordinates';
 
 patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
 arrayfun(@(x) x.calculate_DE(CoC), patterns)
+
+
+max_pattern_sz = max(arrayfun(@(x) size(x.targets, 1), patterns));
 ct = 1;
 for p = patterns
     p.id = ct;
+    p.powerbias = p.powerbias * (length(p.powerbias)/max_pattern_sz);
     ct = ct + 1;
 end
+
+% here we should calculate any power biases before sending it back
 
 comm.send(arrayfun(@struct, patterns), 'daq');
 disp('Sent patterns back to DAQ');
@@ -91,6 +97,11 @@ for p = patterns
     % for each pattern, we generate a hologram
     fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
     si_coords = function_SItoSLM(p.targets, CoC);
+    % add a zero order for dump
+    if p.zero_order_dump
+        warning('Fixed laser power, dumping into 0 order...')
+        si_coords = cat(1, si_coords, [0.5, 0.5, 0,  1 - sum(p.powerbias)]);
+    end
     if holoRequest.spot_radius > 0
         hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, si_coords, holoRequest.spot_radius);
     else  % old behavior
