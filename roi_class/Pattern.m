@@ -3,21 +3,23 @@ classdef Pattern < handle
         diffraction_efficiency % de of this pattern
         targets % targets present in this pattern
         powerbias % bias of power to each target
+        zero_order_dump
         id
     end
 
-    % properties (Access = protected)
-    %     id % unique id for proper indexing of patterns across computers
-    % end
-
     methods
-        function obj = Pattern(targets, powerbias)
+        function obj = Pattern(targets, powerbias, zero_order_dump)      
             obj.validate(targets);
 
             if nargin < 2 || isempty(powerbias)
                 powerbias = ones(1, size(targets, 1));
             end
-            
+
+            if nargin < 3 || isempty(zero_order_dump)
+                warning('Dumping power into zero order!!')
+                zero_order_dump = true;
+            end
+            obj.zero_order_dump = zero_order_dump;
             obj.targets = targets;
             obj.powerbias = powerbias;
         end
