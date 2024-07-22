@@ -7,7 +7,7 @@ vinfo = instrhwinfo('visa','ni');
 v = eval(vinfo.ObjectConstructorName{1});
 fopen(v);
 
-board_number = 2; % 1 if 900, 2 if 1030/1100
+board_number = 1; % 1 if 900, 2 if 1030/1100
 % slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\1024x1024_linearVoltage.lut');
 
 % %%

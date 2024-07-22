@@ -38,7 +38,7 @@ disp('Ready')
 %run this first then code on daq
 fprintf('Waiting for msocket communication From DAQ... ')
 %then wait for a handshake
-srvsock = mslisten(42118);
+srvsock = mslisten(42131);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -92,10 +92,12 @@ p=plot(SIxboundary,SIyboundary,'r');
 
 %% find holo on plane
 
-pwr = 10;
+pwr = 1;
 x = linspace(.2, .8, 2);
 [x, y] = meshgrid(x, x);
-slmCoords = [x(:), y(:), x(:)*0+0.025, x(:)*0+1];
+% slmCoords = [x(:), y(:), x(:)*0+0.14, x(:)*0+1];
+slmCoords = [0.4, 0.4, 0.14, 1];
+
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 
 % DEestimate = DEfromSLMCoords(slmCoords);

@@ -1,5 +1,7 @@
 function order = ShootSequencesMsocket2K(slm, sequences, control)
 %updated 1/19/21 to inlcude output;
+% so i think sequences must be a cell array right? 
+
 
 if numel(slm) ~= numel(sequences)
     disp('Number sequences must equal number SLMs')
@@ -12,17 +14,20 @@ N = numel(slm);
 % end
 % disp('Preloaded sequences to SLM')
 
-control.io.flush();
+% control.io.flush();
+% control.flush()
 
-sendVar = 'C';
-control.io.send(sendVar);
+% sendVar = 'C';
+% control.send(sendVar);
 
 
-order = [];
 disp('waiting for socket to send sequence number')
-while isempty(order)
-    order = control.io.read(0.5); %msrecv(masterSocket,.5);
-end
+order = control.read(300); %msrecv(masterSocket,.5); 
+% if isempty(order)
+%     order = 'done';
+%     disp('Donezo')
+%     return
+% end
 disp(['received sequence of length ' num2str(length(order))]);
 
 % counter = 1;
@@ -37,6 +42,10 @@ disp(['received sequence of length ' num2str(length(order))]);
 % 
 % disp('done')
 % if any(order>size(sequences,3))
+% if ~iscell(order)
+%     order = num2cell(order);
+%     disp('Manual convert...')
+% end
 if any(cellfun(@max, order) > cellfun(@(x) size(x,3), sequences))
     disp('ERROR: Sequence error. blanking SLM...')
     blank = zeros(size(sequences,1),size(sequences,2));
