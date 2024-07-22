@@ -3,7 +3,7 @@ classdef bascam < handle
     properties
         vid
         src
-        camera_model = 'Y800_2048x1536';
+        camera_model = 'Y800_1024x768';
         driver = 'winvideo';
         is_running = 0;
         preview_bit_depth = 'auto';
@@ -38,7 +38,7 @@ classdef bascam < handle
             triggerconfig(obj.vid, 'manual');
             obj.src = getselectedsource(obj.vid);
             obj.src.Exposure = -3;
-            obj.src.Brightness = 33;
+            obj.src.Brightness = 136;
             fprintf('done.\r')
         end
 

@@ -5,8 +5,11 @@ zDepthVal = coarseUZ(coarseZidx);
 zdepths = unique(zDepthVal);
 n_planes = numel(zdepths);
 
+%{
+% changed for 2d...
 coarseInclusionThreshold = 2*stdBgd/sqrt(numFramesCoarseHolo + nBackgroundFrames); %inclusion threshold added based on frames acquired; more stringent then SI. Added 7/16/2020 -Ian
 zDepthVal(coarseVal<coarseInclusionThreshold)=NaN;
+%}
 
 xyzLoc = [xyLoc;zDepthVal]; %fix this later (?)
 

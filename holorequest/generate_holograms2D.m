@@ -1,4 +1,4 @@
-function hololist = generate_holograms(comm, Setup, CoC)
+function hololist = generate_holograms2D(comm, Setup, CoC)
 
 x = 1;     
 HRin = []; 
@@ -45,19 +45,8 @@ else  %if I'm doing a custom sequence
   LN = size(holoRequest.targets,1);
     SLMCoordinates = zeros(4,LN);  
     SICoordinates = holoRequest.targets;
-
-    % KCZ modified to allow for scale; should do nothing if scale=1
-    scale = holoRequest.scale;
-    if scale ~= 1
-        % center to 0,0, scale, then decenter
-        scale_center = [.5, .5];
-        SICoordinates(:,1)=scale*(SICoordinates(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
-        SICoordinates(:,2)=scale*(SICoordinates(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2); 
-
-    else  % old behavior
-        SICoordinates(:,1)=SICoordinates(:,1)+holoRequest.xoffset;
-        SICoordinates(:,2)=SICoordinates(:,2)+holoRequest.yoffset;   
-    end
+    SICoordinates(:,1)=SICoordinates(:,1)+holoRequest.xoffset;
+    SICoordinates(:,2)=SICoordinates(:,2)+holoRequest.yoffset;   
     SICoordinates=SICoordinates';
 end
 %%quickly compute DEs and return them over msocket
@@ -80,7 +69,11 @@ disp('Sent DE to master');
 %%Compute SLM Coordinates
 DEfloor = 0.05;
 
-[SLMCoordinates] = function_SItoSLM(SICoordinates',CoC)';
+SLMCoordinates = transformPointsInverse(CoC, SICoordinates(1:2,  :)');
+% [SLMCoordinates] = function_SItoSLM2D(SICoordinates(1:2, :)',CoC)';
+SLMCoordinates(:, 3) = zeros(size(SLMCoordinates, 1), 1);
+SLMCoordinates(:, 4) = ones(size(SLMCoordinates, 1), 1);
+SLMCoordinates = SLMCoordinates';
 % disp('BAD SUBTRACTION')
 % SLMCoordinates([2], :) = 1 - SLMCoordinates([2], :);
 
@@ -154,12 +147,7 @@ elseif numSolo<40
         DE(j) = sum(energy.*myattenuation);
         disp(['Diffraction efficiency of the hologram : ' int2str(100*DE(j)) '%']);
         subcoordinates = SLMCoordinates(:,ROIselection);
-        if holoRequest.spot_radius > 0
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
-            holoRequest.spot_radius
-        else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
-        end
+        [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
         hololist(:,:,j) = Hologram;
     end
 else 
@@ -181,11 +169,7 @@ else
         tempDE(j) = sum(energy.*myattenuation);
         disp(['Diffraction efficiency of the hologram : ' int2str(100*tempDE(j)) '%']);
         subcoordinates = SLMCoordinates(:,ROIselection);
-        if holoRequest.spot_radius > 0
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
-        else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
-        end
+        [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
         temphololist(:,:,j) = Hologram;
     end
     for i = 1:numSolo
@@ -217,12 +201,7 @@ else
         tempDE(j) = sum(energy.*myattenuation);
         disp(['Diffraction efficiency of the hologram : ' int2str(100*tempDE(j)) '%']);
         subcoordinates = SLMCoordinates(:,ROIselection);
-        if holoRequest.spot_radius > 0
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
-            holoRequest.spot_radius
-        else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
-        end
+        [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
         temphololist(:,:,j) = Hologram;
     end
     for i = 1:numMid
@@ -254,12 +233,7 @@ else
         tempDE(j) = sum(energy.*myattenuation);
         disp(['Diffraction efficiency of the hologram : ' int2str(100*tempDE(j)) '%']);
         subcoordinates = SLMCoordinates(:,ROIselection);
-        if holoRequest.spot_radius > 0
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
-            holoRequest.spot_radius
-        else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
-        end
+        [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
         temphololist(:,:,j) = Hologram;
     end
     for i = 1:numLarge
@@ -284,12 +258,7 @@ else
         DE(j) = sum(energy.*myattenuation);
         disp(['Diffraction efficiency of the hologram : ' int2str(100*DE(j)) '%']);
         subcoordinates = SLMCoordinates(:,ROIselection);
-        if holoRequest.spot_radius > 0
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
-            holoRequest.spot_radius
-        else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
-        end
+        [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
         hololist(:,:,j) = Hologram;
     end
 end 

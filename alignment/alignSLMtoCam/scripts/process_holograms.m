@@ -469,7 +469,7 @@ XYpts = reshape(XYpts,[2 numel(XYpts)/2]);
 disp([num2str(size(XYpts,2)) ' points per plane selected. ' num2str(size(XYpts,2)*numel(zsToBlast)) ' total'])
 
 intermediateFitsT = toc(tIntermediateFine);
-
+%{
 %% Simulate and create new Fine POints
 % do a CoC to get more points to shoot
 
@@ -1130,3 +1130,4 @@ fprintf(['FWHM in the typical useable volume (0 to 100um) is: ' num2str(mean(FWH
 
 
 finalFitsT = toc(denseFitsTimer);
+%}

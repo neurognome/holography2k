@@ -1,4 +1,4 @@
-function alignSLMtoCamMultiTarg2K
+function alignSLMtoCamMultiTarg2K2D
 %% Pathing
 in = input('Run Calibration? (y/n)','s');
 if ~strcmp(in,'y')
@@ -30,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 900;
+calibration_wavelength = 1030;
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -84,7 +84,7 @@ mssend(masterSocket, calibration_wavelength);
 % RUN THIS FIRST, THEN SI CODE (autoCalibSI)
 disp('Waiting for msocket communication to ScanImage Computer')
 %then wait for a handshake
-srvsock2 = mslisten(42042);
+srvsock2 = mslisten(42044);
 SISocket = msaccept(srvsock2,15);
 msclose(srvsock2);
 sendVar = 'A';
@@ -100,13 +100,13 @@ disp('communication from Master To SI Established');
 
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 0.3;
+pwr = 3;
 disp(['individual hologram power set to ' num2str(pwr) 'mW']);
 
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [.4 .4 0 1]; % 0.
+slmCoords = [0.4 0.4 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -136,7 +136,6 @@ mssend(masterSocket,[0 1 1]);
 
 % function_Basler_Preview(Setup, 5);
 bas.preview()
-
 input('Turn off Focus and press any key to continue');
 sutter.setRef()
 
@@ -154,16 +153,17 @@ input('Ready to go (Press any key to continue)');
 
 sutter.moveToRef();
 
+
 %% Create a random set of holograms or use flag to reload
 disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.1 0.85];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-slmYrange = [0.1 0.85];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
+slmXrange = [0.35 0.95];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
+slmYrange = [0.2 0.85];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
 
 % set Z range
-slmZrange = [-0.03 0.15];
+slmZrange = [0, 0]; % no range = 2D
 if ~reloadHolos
     create_holograms
 else
@@ -205,13 +205,14 @@ fprintf(['3\x03c3 above mean threshold ' num2str(threshHold,4) '\n'])
 figure(328)
 imagesc(Bgd)
 
+
 %% Scan Image Planes Calibration
 disp('Begining SI Depth calibration, we do this first incase spots burn holes with holograms')
 clear SIdepthData
 
-zsToUse = linspace(0,70,15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
-
-SIUZ = -15:5:130;% linspace(-120,200,SIpts);
+% zsToUse = linspace(0,70,15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
+zsToUse = [0, 5];
+SIUZ = -15:5:15;% linspace(-120,200,SIpts);
 SIpts = numel(SIUZ);
 
 %generate xy grid
@@ -307,8 +308,15 @@ mssend(SISocket,'end');
 disp(['Scanimage calibration done whole thing took ' num2str(toc(tSI)) 's']);
 siT=toc(tSI);
 
+% define SI bounds
+si_img = max(dataUZ, [], 3);
+si_mask = si_img > mean(si_img(:))*1.5;
+si_mask = bwmorph(si_mask, 'clean');
+si_mask = bwmorph(si_mask,'close');
 
-%%
+imagesc(si_mask)
+
+ %%
 tFits=tic;
 disp('No Longer Putting off the actual analysis until later, Just saving for now')
 out.SIVals =SIVals;
@@ -365,12 +373,13 @@ fprintf('\ndone\n')
 % SIpeakDepth = b2;
 process_optotune; % script containing all the plotting code...
 
+
 %% Coarse Data
 tstart=tic;%Coarse Data Timer
 
 disp('Begining Coarse Holo spot finding')
-coarsePts = 9; %odd number please
-coarseUZ = linspace(-25,150,coarsePts);
+coarsePts = 1; %odd number please
+coarseUZ = 0; % don't move
 mssend(masterSocket,[0 1 1]);
 
 invar='flush';
@@ -385,8 +394,7 @@ sz = size(Bgd);
 sizeFactor = 1;% changed bc camera size change 7/16/2020 by Ian %will have to manually test that this is scalable by 4
 newSize = sz / sizeFactor;
 
-% dataUZ2 = castImg(zeros([newSize  numel(coarseUZ) npts]));
-dataUZ2 = zeros([newSize  numel(coarseUZ) npts], castAs);
+dataUZ2 = zeros([newSize numel(coarseUZ) npts], castAs);
 maxProjections=castImg(zeros([newSize  npts]));
 
 
@@ -429,6 +437,7 @@ for i = 1:numel(coarseUZ)
         frame =  max(frame-Bgd,0);
         frame = imgaussfilt(frame,2);
         frame = imresize(frame,newSize);
+        frame(~si_mask) = 0;
         dataUZ2(:,:,i,k) =  frame;
         imagesc(max(dataUZ2(:, :, i, :), [], 4));
         drawnow();
@@ -481,7 +490,7 @@ create_multiholograms
 % outputs planes, slmMultiCoordsIndiv, multiHolos, targListIndiv
 
 %%
-clear peakValue peakDepth peakFWHM
+clear peakValue peakDepth peakFWHM xyFine
 %%
 box_range = 20; % 7/15/20 changed from 50 to 20 distance threshold is set to 50, this must be less to avoid trying to fit 2 holos
 disp('shootin!')
@@ -535,6 +544,7 @@ for i = 1:planes
             
             % subtract the background and filter
             frame =  max(frame-Bgd,0);
+            frame(~si_mask) = 0;
             % frame = imgaussfilt(frame,2);
             dataUZ(:,:,k) =  frame;
             figure(5)
@@ -571,16 +581,16 @@ for i = 1:planes
             
             
             % catch for small boxes!!!!
-            try
+            % try
                 % method 1 - rely on XY from first step
                 targ_stack = double(squeeze(max(max(dataUZ(targX,targY,:)))));
                 mxProj = max(dataUZ(targX,targY,:),[],3);
                 [ holo_x,holo_y ] = function_findcenter(mxProj );
                 xyFine{i}{j}(:,targ) = [holo_x,holo_y];
-            catch
-                targ_stack = nan(finePts,1);
-                xyFine{i}{j}(targ) = nan;
-            end
+            % catch
+            %     targ_stack = nan(finePts,1);
+            %     xyFine{i}{j}(targ) = nan;
+            % end
             
             %
             
@@ -607,8 +617,9 @@ for i = 1:planes
 end
 
 fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
+%%
+process_holograms2d
 
-process_holograms
 
 %% 
 %% Plot Hole Burn Stuff
@@ -618,6 +629,8 @@ tCompileBurn = tic;
 %scatter(XYpts(1,:),XYpts(2,:),'o');
 
 figure(4); clf
+
+zsToBlast = 0;
 
 clear XYtarg SLMtarg
 for i = 1:numel(zsToBlast)
@@ -633,7 +646,7 @@ for i = 1:numel(zsToBlast)
     estCamZ = polyvaln(OptZToCam,Ask');
     meanCamZ(i) = nanmean(estCamZ); %for use by sutter
     Ask = [XYuse; estCamZ'];
-    estSLM = function_Eval3DCoC(camToSLM,Ask');
+    estSLM = function_Eval2DCoC(camToSLM,Ask(1:2, :)');
     estPower = polyvaln(SLMtoPower,estSLM);
     
     % negative DE restrictions
@@ -645,17 +658,15 @@ for i = 1:numel(zsToBlast)
     estCamZ(ExcludeBurns)=[];
     
     XYtarg{i} = [XYuse; zOptoPlane];
-    SLMtarg{i} = [estSLM estPower];
+    SLMtarg{i} = [estSLM, zeros(length(estPower), 1), estPower];
     
     subplot(1,2,1)
-    scatter3(XYuse(1,:),XYuse(2,:),estCamZ,[],estPower,'filled')
+    scatter(XYuse(1,:),XYuse(2,:),[],estPower,'filled')
     
     hold on
     subplot (1,2,2)
-    scatter3(estSLM(:,1),estSLM(:,2),estSLM(:,3),[],estPower,'filled')
+    scatter(estSLM(:,1),estSLM(:,2),[],estPower,'filled')
     
-    disp([num2str(min(estSLM(:,3))) ' ' num2str(max(estSLM(:,3)))])
-    hold on
 end
 
 subplot(1,2,1)
@@ -680,7 +691,7 @@ for k = 1:numel(zsToBlast)
     for i=1:size(XYtarg{k},2)
         t=tic;
         fprintf(['Compiling Holo ' num2str(i) ' for depth ' num2str(k)]);
-        subcoordinates =  [SLMtarg{k}(i,1:3) 1];
+        subcoordinates =  [SLMtarg{k}(i,1:2),0, 1];
         %check to avoid out of range holos; added 11/1/19
         %12/5/19 now it allows negative zs
         if ~any(subcoordinates(1:2)>1 | subcoordinates(1:2) <0)
@@ -723,10 +734,10 @@ end
 
 mssend(SISocket,['hSI.hStackManager.arbitraryZs = [' str '];']);
 mssend(SISocket,['hSI.hStackManager.numVolumes = [' num2str(numVol) '];']);
-mssend(SISocket,'hSI.hStackManager.enable = 1 ;');
+mssend(SISocket,'hSI.hStackManager.enable = 0 ;');
 
 mssend(SISocket,'hSI.hBeams.pzAdjust = 0;');
-mssend(SISocket,'hSI.hBeams.powers = 8;'); %power on SI laser. important no to use too much don't want to bleach
+mssend(SISocket,'hSI.hBeams.powers = 6;'); %power on SI laser. important no to use too much don't want to bleach
 
 mssend(SISocket,'hSI.extTrigEnable = 0;'); %saassvign
 mssend(SISocket,'hSI.hChannels.loggingEnable = 1;'); %savign
@@ -775,8 +786,8 @@ while wait
     end
 end
 
-burnPowerMultiplier = 10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-burnTime = 1; %in seconds, very rough and not precise
+burnPowerMultiplier = 5; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+burnTime = 0.5; %in seconds, very rough and not precise
 
 disp('Now Burning')
 
@@ -806,8 +817,6 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
         if blastPower>2 %cap for errors, now using a high divided mode so might be high
             blastPower =2;
         end
-
-        blastPower = min(blastPower,  0.024); %  limit
         
         stimT=tic;
         mssend(masterSocket,[blastPower 1 1]);

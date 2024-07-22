@@ -1,6 +1,7 @@
-function [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,Coordinates )
+function [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,Coordinates,disk_radius )
 % Coordinates is a N points by 3 or by 4 map of x,y,z optional power
 % coordinates.
+% disk_diameter: radius in pixels; set to 0 if you just want dots
 
 [~,LP] = size(Coordinates);
 if LP==4
@@ -48,14 +49,35 @@ disp(['Your hologram has ' int2str(NZ) ' distinct levels']);
 end
 Masks = zeros(Setup.SLM.Nx,Setup.SLM.Ny,NZ);
 
-for i = 1:NZ
-    select = (zz==Depths(i));
-    sxx = xx(select);
-    syy = yy(select);
-    spower = power(select);
-    for j = 1:numel(sxx)
-        Masks(sxx(j),syy(j),i) = spower(j);
+if disk_radius ~= 0
+    n_sigma = 4;
+    disk_window_size = disk_radius*2*n_sigma+1;
+    x_disk = linspace(-n_sigma, n_sigma, disk_window_size);
+    [x_disk, y_disk] = meshgrid(x_disk, x_disk);
+    disk = exp(-(x_disk.^2 + y_disk.^2)/2) > 0.05;
+    
+    for i = 1:NZ
+        select = (zz==Depths(i));
+        sxx = xx(select);
+        syy = yy(select);
+        spower = power(select);
+        for j = 1:numel(sxx)
+            Masks(sxx(j)-disk_radius*n_sigma:sxx(j)+disk_radius*n_sigma,...
+                syy(j)-disk_radius*n_sigma:syy(j)+disk_radius*n_sigma,i) = spower(j)*disk;
+        end
     end
+else
+    
+    for i = 1:NZ
+        select = (zz==Depths(i));
+        sxx = xx(select);
+        syy = yy(select);
+        spower = power(select);
+        for j = 1:numel(sxx)
+            Masks(sxx(j),syy(j),i) = spower(j);
+        end
+    end
+
 end
 
 Masksg = Masks;
@@ -83,7 +105,7 @@ end
 Hologram = uint8(floor((Setup.SLM.pixelmax*(Holo.phase+pi)/(2*pi))));
 %f = figure(1); imagesc(Hologram); axis image; pause(2); close(f)
 
-[ Reconstruction ] = function_VolumeIntensity( Setup,Holo.phase,HStacks);
+[ Reconstruction ] = [];%function_VolumeIntensity( Setup,Holo.phase,HStacks);
 
 
 

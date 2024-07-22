@@ -4,7 +4,7 @@ clear
 close all
 clc
 %%
-wavelength = 900;
+wavelength = 1030;
 tBegin = tic;
 
 disp('Setting up stuff...');
@@ -29,6 +29,9 @@ slm.stop();
 slm.wait_for_trigger = 0;
 slm.start();
 
+
+
+
 sutter = sutterController();
 
 bas = bascam();
@@ -44,7 +47,7 @@ bas.preview()
 %run this first then code on daq
 fprintf('Waiting for msocket communication From DAQ... ')
 %then wait for a handshake
-srvsock = mslisten(42128);
+srvsock = mslisten(42130);
 masterSocket = msaccept(srvsock,15);
 msclose(srvsock);
 sendVar = 'A';
@@ -71,9 +74,8 @@ fprintf('done.\r')
 % this power will be used throughout the calibration and is appropriately
 % scaled for multi-target holograms and hole-burning
 
-pwr = .75;
-slmCoords = [0.4 0.4 0 1]; % scanimage alignd: [.4 .6 0.07 1]; % 
-
+    pwr = .1; %.75/64*16;
+slmCoords = [0.4 0.4 0.12 1]; % scanimage alignd: [.4 .4 0.08 1]; %
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 % 
@@ -81,6 +83,7 @@ disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 % disp(['Diffraction Estimate for this spot is: ' num2str(DEestimate)])
 
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
+% [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, slmCoords, 10);
 % Function_Feed_SLM(Setup.SLM, Holo);
 % slm.feed(zeros(1024, 1024));
 slm.feed(Holo);
@@ -91,7 +94,7 @@ mssend(masterSocket, [0 1 1]);
 %% check pixel val
 bgd_frames = bas.grab(10);
 bgd = mean(bgd_frames, 3);
-
+ 
 mssend(masterSocket, [pwr/1000 1 1]);
 data = bas.grab(10);
 mssend(masterSocket, [0 1 1]);
@@ -129,7 +132,7 @@ figure(1); clf
 sutter.setRef()
 
 sz = size(bgd);
-UZ= linspace(-70,70,41);
+UZ= linspace(-110,110,61);
 
 dataUZ = zeros([sz numel(UZ)]);
 
@@ -328,4 +331,77 @@ colorbar
 
 disp(['Max camera val: ' num2str(max(peakFrame(:)))])
 
+%% fitting but remove camera bias (KCZ):
+%  also, can change xy window for finding peak across z stack in case beam
+%  is not well aligned (doesn't stay in same place during z stack).
 
+range = 5;  % increase if spot translates laterally during z stack
+
+dimx = max((x-range),1):min((x+range),size(frame,1));
+dimy =  max((y-range),1):min((y+range),size(frame,2));
+
+thisStack = squeeze(max(max(dataUZ(dimx,dimy,:))));
+[a, peakPlane ] = max(thisStack);
+peakFrame = dataUZ(:,:,peakPlane);
+
+camera_bias = mean(mean(dataUZ(:,:,1)));  % assume you start where no signal from spot
+
+xLine = double(peakFrame(x,:));
+yLine = double(peakFrame(:,y))';
+[row,col] = size(frame);
+xSize = linspace(1,col,numel(xLine))./pxPerMu; 
+ySize = linspace(1,row,numel(yLine))./pxPerMu; 
+
+f1 = fit(xSize', xLine', 'gauss1');
+xValue =f1.a1;
+xDepth =f1.b1;
+xFWHM = 2*sqrt(2*log(2))*f1.c1/sqrt(2);
+
+ff = fit(UZ', thisStack-camera_bias, 'gauss1');
+peakValue =ff.a1;
+peakDepth =ff.b1;
+peakFWHM = 2*sqrt(2*log(2))*ff.c1/sqrt(2);
+
+mimg = mean(dataUZ,3);
+
+% caclulations
+figure(3);clf
+subplot(2,2,1)
+plot(UZ,thisStack-camera_bias)
+hold on
+plot(ff)
+title(['Axial Fit FWHM ' num2str(peakFWHM) '\mum'])
+ylabel('Intensity')
+xlabel('Z-position (\mum)')
+legend('Measured', 'Fit')
+
+subplot(2,2,2)
+plot(xSize,xLine) 
+hold on
+plot(f1)
+xlim([f1.b1-50 f1.b1+50])
+title(['Radial Fit FWHM ' num2str(xFWHM) '\mum'])
+ylabel('Intensity')
+xlabel('X-position (\mum)')
+legend('Measured', 'Fit')
+
+
+subplot(2,2,3);
+axis square
+imagesc(mimg)
+% imagesc(mxProj)
+xlim([y-30 y+30])
+ylim([x-30 x+30])
+title('Mean Holo')
+colorbar
+
+subplot(2,2,4);
+axis square
+imagesc(peakFrame)
+% imagesc(mxProj)
+xlim([y-30 y+30])
+ylim([x-30 x+30])
+title('Peak Frame')
+colorbar
+
+disp(['Max camera val: ' num2str(max(peakFrame(:)))])
