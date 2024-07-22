@@ -39,6 +39,21 @@ classdef Pattern < handle
         function set.id(obj, id)
             obj.id = id;
         end
+
+        function calculate_DE(obj, CoC, de_floor)
+            if nargin < 3 || isempty(de_floor)
+                de_floor = 0.05;
+            end
+            % make sure everything is pathed, or else you won't find this..
+            slm_coords = function_SItoSLM(obj.targets, CoC);
+            attenuation_coeffs = max(slm_coords(4, :), de_floor);
+
+            energy = 1./attenuation_coeffs;
+            energy = energy.*obj.powerbias;
+            energy = energy/sum(energy);
+            obj.diffraction_efficiency = sum(energy.*attenuation_coeffs);
+            % disp([num2str(sum(attenuation_coeffs == de_floor)) ' Target(s) below Diffraction Efficiency floor (' num2str(DEfloor) ').']);
+        end
     end
 
     methods (Static = true)

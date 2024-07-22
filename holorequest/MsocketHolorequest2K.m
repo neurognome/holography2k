@@ -40,20 +40,13 @@ end
 sequences = {};
 for w = 1:numel(wavelength)
     fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
-    hololist = generate_holograms(comm, Setup, calib(w));
+    hololist = generate_holograms_new(comm, Setup, calib(w));
     % hololist = generate_holograms2D(comm, Setup, calib(w));
     sequences{end+1} = uint8(hololist);
 end
 
-% fprintf('Waiting for holorequest for 900nm...\n')
-% hololist_900 = generate_holograms(control, Setup, CoC_900); 
-% fprintf('Waiting for holorequest for 1100nm...\n')
-% hololist_1100 = generate_holograms(control, Setup, CoC_1100);
 fprintf('All holorequests received.\n')
 
-%totally remove sequences as a thing that exists basically
-% sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
-% slm = [get_slm(900), get_slm(1100)];
 slm = [];
 for w = wavelength
     slm = [slm, get_slm(w)];
