@@ -26,7 +26,6 @@ else  % old behavior-
 end
 SICoordinates=SICoordinates';
 
-
 %%quickly compute DEs and return them over msocket
 % 
 % if isfield(holoRequest,'roiWeights')
@@ -73,8 +72,18 @@ SICoordinates=SICoordinates';
 
 % send back the patterns
 % control.io.send(DE_list)
-comm.send(DE_list, 'daq');
-disp('Sent DE to master');
+% patterns
+
+patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
+arrayfun(@(x) x.calculate_DE(CoC), patterns)
+ct = 1;
+for p = patterns
+    p.id = ct;
+    ct = ct + 1;
+end
+
+comm.send(arrayfun(@struct, patterns), 'daq');
+disp('Sent patterns back to DAQ');
 
 %%Compute SLM Coordinates
 DEfloor = 0.05;

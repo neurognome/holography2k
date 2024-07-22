@@ -3,11 +3,12 @@ classdef Pattern < handle
         diffraction_efficiency % de of this pattern
         targets % targets present in this pattern
         powerbias % bias of power to each target
+        id
     end
 
-    properties (Access = protected)
-        id % unique id for proper indexing of patterns across computers
-    end
+    % properties (Access = protected)
+    %     id % unique id for proper indexing of patterns across computers
+    % end
 
     methods
         function obj = Pattern(targets, powerbias)
@@ -46,21 +47,20 @@ classdef Pattern < handle
             end
             % make sure everything is pathed, or else you won't find this..
             slm_coords = function_SItoSLM(obj.targets, CoC);
-            attenuation_coeffs = max(slm_coords(4, :), de_floor);
+            attenuation_coeffs = max(slm_coords(:, 4), de_floor);
 
             energy = 1./attenuation_coeffs;
             energy = energy.*obj.powerbias;
             energy = energy/sum(energy);
             obj.diffraction_efficiency = sum(energy.*attenuation_coeffs);
-            % disp([num2str(sum(attenuation_coeffs == de_floor)) ' Target(s) below Diffraction Efficiency floor (' num2str(DEfloor) ').']);
         end
     end
 
     methods (Static = true)
         function out = from_struct(input_struct)
-            for f = fieldnames(input_struct)
-                keyboard
-            end
+            obj = Pattern(input_struct.targets, input_struct.powerbias);
+            obj.diffraction_efficiency = input_struct.diffraction_efficiency;
+            out = obj;
         end
     end
 end
