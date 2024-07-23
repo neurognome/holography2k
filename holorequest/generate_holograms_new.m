@@ -98,10 +98,14 @@ for p = patterns
     fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
     si_coords = function_SItoSLM(p.targets, CoC);
     % add a zero order for dump
-    if p.zero_order_dump
-        warning('Fixed laser power, dumping into 0 order...')
-        si_coords = cat(1, si_coords, [0.5, 0.5, 0,  1 - sum(p.powerbias)]);
+    if size(p.targets, 1) < max_pattern_sz
+        if p.zero_order_dump
+            si_coords(:, 4) = si_coords(:, 4) .* p.powerbias';
+            warning('Fixed laser power, dumping into 0 order...')
+            si_coords = cat(1, si_coords, [0.5, 0.5, 0,  1 - sum(si_coords(:, 4))]);
+        end
     end
+
     if holoRequest.spot_radius > 0
         hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, si_coords, holoRequest.spot_radius);
     else  % old behavior

@@ -65,6 +65,7 @@ classdef Pattern < handle
             if isfield(input_struct, 'id')
                 obj.id = input_struct.id;
             end
+            obj.zero_order_dump = input_struct.zero_order_dump;
             out = obj;
         end
     end
