@@ -19,12 +19,12 @@ slm.wait_for_trigger = 0;
 slm.start();
 %%
 %slmCoords = [.475 .52 -.0 1]; % 0.
-slmCoords = [0.6 .55 0 1]; % 0.
+slmCoords = [513/1024 513/1024 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
 
-slm.feed(Holo);
+slm.feed(blankHolo);
 % pwr= 3;
 % mssend(masterSocket,[pwr/1000 1 1]); % again, check if this is mW or W
 %  
@@ -55,10 +55,10 @@ slm.feed(Holo);
 
 %% test out making bigger spots
 
-slmCoords = [.65 .35 0 1]; % 0.
+slmCoords = [.65 .69 0.0080 1]; % 0.
 
 %[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
-[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,70 );
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,20 );
 
 slm.feed(Holo);
 
@@ -70,3 +70,15 @@ slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 
 
 slm.feed(Holo)
+
+%% make big spots, but divert some power to zero order
+
+slmCoords = [.65 .35 0 1]; % 0.
+%slmCoords = [513/1024 513/1024 0 1]; 
+%slmZero = [513/1024 513/1024 0 1]; 
+%slmCoords = [slmCoords; slmZero];
+
+%[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
+
+slm.feed(Holo);
