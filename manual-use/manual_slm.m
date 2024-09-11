@@ -4,6 +4,7 @@
 Setup.CGHMethod=2;
 Setup.GSoffset=0;
 Setup.verbose =0;
+
 % Setup.useGPU = 0;
 %% choose one
 wavelength = 589
@@ -55,19 +56,21 @@ slm.feed(Holo);
 
 %% test out making bigger spots
 
-slmCoords = [.65 .69 0.0080 1]; % 0.
+slmCoords = [.4 .6 0.0080 1; .6 .6 0.0080 1]; % 0.
 
 %[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
-[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,20 );
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
 
 slm.feed(Holo);
 
 %% make meshgrid (testing 589) of big spots
-x = linspace(0.1, .9, 5);
+x = linspace(0, 1, 3);
 [x,y]=meshgrid(x,x);
-slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
+slmCoords = [x(:), y(:), x(:)*0-.04, x(:)*0+1];
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords, 0);
-
+% 
+% Holo4bit = double(Holo);
+% Holo4bit = uint8(16*(Holo4bit/16));
 
 slm.feed(Holo)
 

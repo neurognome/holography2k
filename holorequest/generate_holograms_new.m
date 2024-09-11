@@ -9,22 +9,21 @@ disp('new File Detected - running HoloRequest')
 holoRequest = HRin;
 
 
-LN = size(holoRequest.targets,1);
-SLMCoordinates = zeros(4,LN);
-SICoordinates = holoRequest.targets;
-
+patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
 % KCZ modified to allow for scale; should do nothing if scale=1
 scale = holoRequest.scale;
-if scale ~= 1
-    % center to 0,0, scale, then decenter
-    scale_center = [.5, .5];
-    SICoordinates(:,1)=scale*(SICoordinates(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
-    SICoordinates(:,2)=scale*(SICoordinates(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2);
-else  % old behavior-
-    SICoordinates(:,1)=SICoordinates(:,1)+holoRequest.xoffset;
-    SICoordinates(:,2)=SICoordinates(:,2)+holoRequest.yoffset;
+for p = patterns
+    if scale ~= 1
+        % center to 0,0, scale, then decenter
+        scale_center = [.5, .5];
+
+        p.targets(:,1)=scale*(p.targets(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
+        p.targets(:,2)=scale*(p.targets(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2);
+    else  % old behavior-
+        p.targets(:,1)=p.targets(:,1)+holoRequest.xoffset;
+        p.targets(:,2)=p.targets(:,2)+holoRequest.yoffset;
+    end
 end
-SICoordinates=SICoordinates';
 
 %%quickly compute DEs and return them over msocket
 % 
@@ -74,7 +73,6 @@ SICoordinates=SICoordinates';
 % control.io.send(DE_list)
 % patterns
 
-patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
 arrayfun(@(x) x.calculate_DE(CoC), patterns)
 
 
@@ -96,20 +94,18 @@ hololist = zeros(Setup.Nx, Setup.Ny, numel(patterns));
 for p = patterns
     % for each pattern, we generate a hologram
     fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
-    si_coords = function_SItoSLM(p.targets, CoC);
+    slm_coords = function_SItoSLM(p.targets, CoC);
     % add a zero order for dump
-    if size(p.targets, 1) < max_pattern_sz
-        if p.zero_order_dump
-            si_coords(:, 4) = si_coords(:, 4) .* p.powerbias';
-            warning('Fixed laser power, dumping into 0 order...')
-            si_coords = cat(1, si_coords, [0.5, 0.5, 0,  1 - sum(si_coords(:, 4))]);
-        end
+    if p.zero_order_dump && (size(p.targets, 1)  < max_pattern_sz)
+        slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias';
+        warning('Fixed laser power, dumping into 0 order...')
+        slm_coords = cat(1, slm_coords, [0.5, 0.5, 0,  1 - sum(slm_coords(:, 4))]);
     end
 
     if holoRequest.spot_radius > 0
-        hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, si_coords, holoRequest.spot_radius);
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, slm_coords, holoRequest.spot_radius);
     else  % old behavior
-        hololist(:, :, ct) = function_Make_3D_SHOT_Holos(Setup, si_coords);
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos(Setup, slm_coords);
     end
 
     ct = ct + 1;
