@@ -1,4 +1,4 @@
-function alignSLMtoCamMultiTarg2K
+function align_slm_to_camera_scope2k
 %% Pathing
 in = input('Run Calibration? (y/n)','s');
 if ~strcmp(in,'y')
@@ -30,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 1030;
+calibration_wavelength = 900; 
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -58,55 +58,22 @@ disp('Ready')
 %% look for objective in 1p
 
 bas.preview()
+% bas.preview_set_cmax(80)
 
 %% Make mSocketConnections with DAQ and SI Computers
-% RUN THIS FIRST, THEN DAQ CODE (alignCodeDAQ2K)
-
-disp('Waiting for msocket communication From DAQ')
-%then wait for a handshake
-srvsock = mslisten(42130);
-masterSocket = msaccept(srvsock,15);
-msclose(srvsock);
-sendVar = 'A';
-mssend(masterSocket, sendVar);
-
-invar = [];
-
-while ~strcmp(invar,'B')
-    invar = msrecv(masterSocket,.5);
-end
-disp('communication from Master To Holo Established');
-
-% send the calibration parameters....
-mssend(masterSocket, calibration_wavelength);
-
-%% Connect with SI computer
-% RUN THIS FIRST, THEN SI CODE (autoCalibSI)
-disp('Waiting for msocket communication to ScanImage Computer')
-%then wait for a handshake
-srvsock2 = mslisten(42042);
-SISocket = msaccept(srvsock2,15);
-msclose(srvsock2);
-sendVar = 'A';
-mssend(SISocket, sendVar);
-
-invar = [];
-
-while ~strcmp(invar,'B');
-    invar = msrecv(SISocket,.1);
-end
-
-disp('communication from Master To SI Established');
-
+comm = HolochatInterface('holo');
+comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 0.3;
-disp(['individual hologram power set to ' num2str(pwr) 'mW']);
+pwr = 1.2;
+disp(['individual hologra' ...
+    'm; power set to ' num2str(pwr) 'mW']);
+
 
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [.4 .4 0 1]; % 0.
+slmCoords = [0.4 0.4 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -114,15 +81,16 @@ blankHolo = zeros([1024 1024]);
 
 slm.feed(Holo);
 
-mssend(masterSocket,[pwr/1000 1 1]); % again, check if this is mW or W
+comm.send([pwr/1000, 1, 1], 'daq')
 
-bas.preview()
-mssend(masterSocket,[0 1 1]);
-
+%bas.preview()
+% bas.preview_set_cmax(80)
+bas.preview();
+comm.send([0, 1, 1], 'daq')
 %% check power levels
-mssend(masterSocket,[pwr/1000 1 1]);
+comm.send([pwr/1000, 1, 1], 'daq')
 data = bas.grab(5);
-mssend(masterSocket,[0 1 1]);
+comm.send([0, 1, 1], 'daq')
 frame = mean(data,3); % used to have a castImg, not sure why?
 figure(668)
 imagesc(frame)
@@ -132,7 +100,7 @@ max(frame,[],'all')
 disp('Find Focal Plane, Center and Zero the Sutter')
 disp('Leave the focus at Zoom 1. at a power that is less likely to bleach (14% 25mW)') %25% 8/16/19
 disp('Don''t forget to use Ultrasound Gel on the objective so it doesn''t evaporate')
-mssend(masterSocket,[0 1 1]);
+comm.send([0, 1, 1], 'daq')
 
 % function_Basler_Preview(Setup, 5);
 bas.preview()
@@ -140,7 +108,7 @@ bas.preview()
 input('Turn off Focus and press any key to continue');
 sutter.setRef()
 
-mssend(SISocket,[0 0]);
+comm.send([0, 0], 'si');
 
 disp('Make Sure the DAQ computer is running testMultiTargetsDAQ. and the SI computer running autoCalibSI');
 disp('also make those names better someday')
@@ -159,11 +127,14 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.1 0.85];%7/23/21 [.2 .9]; %[0.125 0.8]; %[0.5-RX 0.4+RX]; %you want to match these to the size of your imaging area
-slmYrange = [0.1 0.85];%7/23/21 [.05 0.9];%9/19/19 [.01 .7];% [0.075 0.85];%[0.5-RY 0.5+RY];
+slmXrange = [0.15 0.85];%1030 or 1100
+slmYrange = [0.12 0.85];%1030
+% slmXrange = [0.15 0.85];%607 or 900
+% slmYrange = [0.15 0.85];%607
 
 % set Z range
-slmZrange = [-0.03 0.15];
+slmZrange = [-0.03 0.15];%1030
+% slmZrange = [-0.04 0.2];%607
 if ~reloadHolos
     create_holograms
 else
@@ -252,11 +223,11 @@ for k =1:numel(zsToUse)
     z = zsToUse(k);
     fprintf(['Testing plane ' num2str(z) ': ']);
     
-    
-    mssend(SISocket,[z 1]);
+    comm.send([z, 1], 'si');
     invar=[];
     while ~strcmp(invar,'gotit')
-        invar = msrecv(SISocket,0.01);
+        invar = comm.read(0.01);
+        % invar = comm.read(0.01);
     end
     
     
@@ -282,10 +253,14 @@ for k =1:numel(zsToUse)
     sutter.moveToRef()
     pause(0.1)
     
-    mssend(SISocket,[z 0]);
+    % mssend(SISocket,[z 0]);
+    disp('Moving on...')
+    comm.send([z, 0], 'si');
     invar=[];
     while ~strcmp(invar,'gotit')
-        invar = msrecv(SISocket,0.01);
+        invar = comm.read(0.01);
+        disp(invar)
+        % invar = comm.read(0.01);
     end
     
     figure(1212);
@@ -302,7 +277,8 @@ for k =1:numel(zsToUse)
     disp([' Took ' num2str(toc(t)) 's']);
 end
 
-mssend(SISocket,'end');
+% mssend(SISocket,'end');
+comm.send('end', 'si');
 
 disp(['Scanimage calibration done whole thing took ' num2str(toc(tSI)) 's']);
 siT=toc(tSI);
@@ -371,11 +347,12 @@ tstart=tic;%Coarse Data Timer
 disp('Begining Coarse Holo spot finding')
 coarsePts = 9; %odd number please
 coarseUZ = linspace(-25,150,coarsePts);
-mssend(masterSocket,[0 1 1]);
+comm.send([0, 1, 1], 'daq');
 
 invar='flush';
 while ~isempty(invar)
-    invar = msrecv(masterSocket,0.01);
+    invar = comm.read(0.01);
+    % invar = comm.read(0.01);
 end
 
 vals = nan(coarsePts,npts);
@@ -412,19 +389,21 @@ for i = 1:numel(coarseUZ)
         end
         
         slm.feed(hololist(:, :, k));
-        mssend(masterSocket,[pwr/1000 1 1]);
+        comm.send([pwr/1000, 1, 1], 'daq')
+        % mssend(masterSocket,[pwr/1000 1 1]);
         invar=[];
         while ~strcmp(invar,'gotit')
-            invar = msrecv(masterSocket,0.01);
+            invar = comm.read(0.01);
+            % invar = comm.read(0.01);
         end
         frame = bas.grab(numFramesCoarseHolo);
         frame = castImg(mean(frame, 3));
 
-        mssend(masterSocket,[0 1 1]);
+        comm.send([0, 1, 1], 'daq');
 
         invar=[];
         while ~strcmp(invar,'gotit')
-            invar = msrecv(masterSocket,0.01);
+            invar = comm.read(0.01);
         end
         frame =  max(frame-Bgd,0);
         frame = imgaussfilt(frame,2);
@@ -474,7 +453,7 @@ disp('Begin multi-target z search...')
 multi_time = tic;
 
 % flush the socket
-flushMSocket(masterSocket)
+comm.flush();
 
 % Generate multi-target holos based off coarse search data
 create_multiholograms
@@ -502,7 +481,7 @@ for i = 1:planes
             continue
         end
         
-        multi_pwr = size(slmMultiCoordsIndiv{i}{j},2) * pwr;% * 2;
+        multi_pwr = size(slmMultiCoordsIndiv{i}{j},2) * pwr * 2; % remove *2 later
         slm.feed(multiHolos{i}(j, :, :));
         
         target_ref = targListIndiv{i}{j}(1);
@@ -524,14 +503,17 @@ for i = 1:planes
                 pause(0.1);
             end
             
-            requestPower(multi_pwr,masterSocket) % potentially check this but later
+
+            comm.send([multi_pwr/1000, 1, 1], 'daq');
+            % requestPower(multi_pwr,masterSocket) % potentially check this but later
             
             % grab a frame, convert to uint8
             frame = bas.grab(10);
             frame = castImg(mean(frame, 3));
             
             % turn off the laser
-            requestPower(0,masterSocket)
+            % requestPower(0,masterSocket)
+            comm.send([0, 1, 1], 'daq');
             
             % subtract the background and filter
             frame =  max(frame-Bgd,0);
@@ -611,6 +593,40 @@ fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
 process_holograms
 
 %% 
+nBurnGrid = 8; %number of points in the burn grid, deault 8
+xpts = linspace(SImatchRangeX(1),SImatchRangeX(2),nBurnGrid);
+ypts = linspace(SImatchRangeY(1),SImatchRangeY(2),nBurnGrid);
+
+
+XYpts =[];
+for i=1:nBurnGrid
+    for k=1:nBurnGrid
+        XYpts(:,end+1) = [xpts(i) ypts(k)];
+    end
+end
+
+XYptsInBounds = inpolygon(XYpts(1,:),XYpts(2,:),SIxboundary,SIyboundary);
+XYpts = XYpts(:,XYptsInBounds);
+
+%figure out spacing of pts across zs
+zsToBlast = zsToUse;% match to SI Calib %linspace(0,90,11);% Changed to account for newer optotune 9/28/20; Changed to account for new optotune range 9/19/19 by Ian 0:10:80; %OptoPlanes to Blast
+interXdist = xpts(2)-xpts(1);
+interYdist = ypts(2)-ypts(1);
+
+gridSide = ceil(sqrt(numel(zsToBlast)));
+xOff = round(interXdist/gridSide);
+yOff = round(interYdist/gridSide);
+
+%Turn into a more unique looking pattern
+numPts = size(XYpts,2);
+FractionOmit = 0.1; %changed down to 10% from 25% bc not really needed. 9/19/19 by Ian
+XYpts(:,randperm(numPts,round(numPts*FractionOmit)))=[];
+XYpts = reshape(XYpts,[2 numel(XYpts)/2]);
+
+disp([num2str(size(XYpts,2)) ' points per plane selected. ' num2str(size(XYpts,2)*numel(zsToBlast)) ' total'])
+
+intermediateFitsT = toc(tIntermediateFine);
+
 %% Plot Hole Burn Stuff
 tCompileBurn = tic;
 
@@ -703,10 +719,11 @@ disp('Blasting Holes for SI to SLM alignment, this will take about an hour and t
 tBurn = tic;
 
 %confirm that SI computer in eval Mode
-mssend(SISocket,'1+2');
+% mssend(SISocket,'1+2');
+comm.send('1+2', 'si');
 invar=[];
 while ~strcmp(num2str(invar),'3') %stupid cludge so that [] read as false
-    invar = msrecv(SISocket,0.01);
+    invar = comm.read(0.01);
 end
 disp('linked')
 
@@ -721,31 +738,32 @@ for ii = 1:length(zsToBlast)
     str = strcat(str, num2str(zsToBlast(ii)), ';');
 end
 
-mssend(SISocket,['hSI.hStackManager.arbitraryZs = [' str '];']);
-mssend(SISocket,['hSI.hStackManager.numVolumes = [' num2str(numVol) '];']);
-mssend(SISocket,'hSI.hStackManager.enable = 1 ;');
+comm.send(['hSI.hStackManager.arbitraryZs = [' str '];'], 'si');
+comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
 
-mssend(SISocket,'hSI.hBeams.pzAdjust = 0;');
-mssend(SISocket,'hSI.hBeams.powers = 8;'); %power on SI laser. important no to use too much don't want to bleach
+comm.send('hSI.hStackManager.enable = 1 ;', 'si');
 
-mssend(SISocket,'hSI.extTrigEnable = 0;'); %saassvign
-mssend(SISocket,'hSI.hChannels.loggingEnable = 1;'); %savign
-mssend(SISocket,'hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';');
-mssend(SISocket,['hSI.hScan2D.logFileStem = ' baseName ';']);
-mssend(SISocket,'hSI.hScan2D.logFileCounter = 1;');
+%comm.send('hSI.hBeams.pzAdjust = 0;', 'si');
+comm.send('hSI.hBeams.powers = 7;', 'si'); %power on SI laser. important no to use too much don't want to bleach
 
-mssend(SISocket,['hSICtl.updateView;']);
+comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
+comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
+comm.send('hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';', 'si');
+comm.send(['hSI.hScan2D.logFileStem = ' baseName ';'], 'si');
+comm.send('hSI.hScan2D.logFileCounter = 1;', 'si');
+
+comm.send(['hSICtl.updateView;'], 'si');
 
 %clear invar
-invar = msrecv(SISocket,0.01);
+invar = comm.read(0.01);
 while ~isempty(invar)
-    invar = msrecv(SISocket,0.01);
+    invar = comm.read(0.01);
 end
 
-mssend(SISocket,'30+7');
+comm.send('30+7', 'si');
 invar=[];
 while ~strcmp(num2str(invar),'37')
-    invar = msrecv(SISocket,0.01);
+    invar = comm.read(0.01);
 end
 disp('completed parameter set')
 
@@ -754,17 +772,17 @@ disp('completed parameter set')
 %AcquireBaseline
 disp('Acquire Baseline')
 
-mssend(SISocket,'hSI.startGrab()');
-invar = msrecv(SISocket,0.01);
+comm.send('hSI.startGrab()', 'si');
+invar = comm.read(0.01);
 while ~isempty(invar)
-    invar = msrecv(SISocket,0.01);
+    invar = comm.read(0.01);
 end
 wait = 1;
 while wait
-    mssend(SISocket,'hSI.acqState;');
-    invar = msrecv(SISocket,0.01);
+    comm.send('hSI.acqState;', 'si');
+    invar = comm.read(0.01);
     while isempty(invar)
-        invar = msrecv(SISocket,0.01);
+        invar = comm.read(0.01);
     end
     
     if strcmp(invar,'idle')
@@ -775,8 +793,8 @@ while wait
     end
 end
 
-burnPowerMultiplier = 10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-burnTime = 1; %in seconds, very rough and not precise
+burnPowerMultiplier = 3;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+burnTime = 0.5; %in seconds, very rough and not precise
 
 disp('Now Burning')
 
@@ -807,39 +825,40 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
             blastPower =2;
         end
 
-        blastPower = min(blastPower,  0.024); %  limit
+        % blastPower = min(blastPower, 0.024); %  limit 0.024 for the 607
         
         stimT=tic;
-        mssend(masterSocket,[blastPower 1 1]);
+        comm.send([blastPower 1 1], 'daq');
         while toc(stimT)<burnTime
         end
-        mssend(masterSocket,[0 1 1]);
+        comm.send([0, 1, 1], 'daq');
         
         %flush masterSocket %flush and handshake added 9/20/19 by Ian
         invar='flush';
         while ~isempty(invar)
-            invar = msrecv(masterSocket,0.01);
+            invar = comm.read(0.01);
         end
         %re send 0
-        mssend(masterSocket,[0 1 1]);
+        comm.send([0, 1, 1], 'daq');
         %check for handshake
         invar=[];
         while ~strcmp(invar,'gotit')
-            invar = msrecv(masterSocket,0.01);
+            invar = comm.read(0.01);
         end
         
-        mssend(SISocket,'hSI.startGrab()');
-        invar = msrecv(SISocket,0.01);
-        while ~isempty(invar)
-            invar = msrecv(SISocket,0.01);
-        end
-        
+        comm.send('hSI.startGrab()', 'si');
+        % invar = comm.read(0.01);
+        % while ~isempty(invar)
+        %     invar = comm.read(0.01);
+        % end
+
+        pause(1); % force a wait here...
         wait = 1;
         while wait
-            mssend(SISocket,'hSI.acqState');
-            invar = msrecv(SISocket,0.01);
+            comm.send('hSI.acqState', 'si');
+            invar = comm.read(0.01);
             while isempty(invar)
-                invar = msrecv(SISocket,0.01);
+                invar = comm.read(0.01);
             end
             
             if strcmp(invar,'idle')
@@ -849,6 +868,8 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
                 %             disp(invar)
             end
         end
+
+
         disp([' Took ' num2str(toc(t)) 's'])
     end
 end
@@ -876,26 +897,6 @@ save(fullfile(pth,[date '_Calib_' num2str(calibration_wavelength) '.mat']),'CoC'
 save(fullfile(pth,'ActiveCalib.mat'),'CoC')
 save(fullfile(pth,['CalibWorkspace_' num2str(calibration_wavelength) '.mat']), '-v7.3');
 
-
-% times.saveT = toc(tSave);
-% times.burnFitsT = burnFitsT;
-% times.loadT = loadT;
-% times.MovT = MovT;
-% times.burnT = burnT;
-% times.compileBurnT = compileBurnT;
-% times.finalFitsT = finalFitsT; %Final Fits Camera to SLM
-% times.finalFineT = fineT; %Second Dense Fine
-% times.intermediateFitsT = intermediateFitsT;
-% times.intermediateT = multiT; %first pass fine fit
-% times.coarseFitsT = fitsT; %Coarse
-% times.coarseT = coarseT; %Coarse Fit
-% times.siT = siT;
-% times.singleCompileT = singleCompileT;
-% times.multiCompileT = multiCompileT;
-% times.manualT = tManual; %time spent doing manual setup.
-
-totT = toc(tBegin);
-times.totT = totT;
 save(fullfile(pathToUse,'CalibWorkspace_v73.mat'), '-v7.3');
 % save(fullfile(pathToUse,['CalibWorkspace_will_' date '.mat']))
 disp(['Saving took ' num2str(toc(tSave)) 's']);

@@ -7,7 +7,7 @@ Setup.verbose =0;
 
 % Setup.useGPU = 0;
 %% choose one
-wavelength = 589
+wavelength = 607
 slm = get_slm(wavelength);
 blankHolo = zeros([1024 1024]);
 
@@ -46,7 +46,7 @@ slm.feed(blankHolo);
 % top left: 0.1 0.85 
 
 %% make meshgrid (testing 589)
-x = linspace(0.1, .9, 5);
+x = linspace(0.3, .7, 3);
 [x,y]=meshgrid(x,x);
 slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
@@ -57,16 +57,19 @@ slm.feed(Holo);
 %% test out making bigger spots
 
 slmCoords = [.4 .6 0.0080 1; .6 .6 0.0080 1]; % 0.
+%slmCoords = [513/1024 513/1024 0 1];   % zero order
+% slmCoords = [1 1 0 1];
 
 %[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
 
 slm.feed(Holo);
 
-%% make meshgrid (testing 589) of big spots
-x = linspace(0, 1, 3);
+%% make meshgrid (test
+% ing 589) of big spots
+x = linspace(0.05, .95, 4);
 [x,y]=meshgrid(x,x);
-slmCoords = [x(:), y(:), x(:)*0-.04, x(:)*0+1];
+slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords, 0);
 % 
 % Holo4bit = double(Holo);
@@ -76,7 +79,7 @@ slm.feed(Holo)
 
 %% make big spots, but divert some power to zero order
 
-slmCoords = [.65 .35 0 1]; % 0.
+slmCoords = [.4 .4 0 1]; % 0.
 %slmCoords = [513/1024 513/1024 0 1]; 
 %slmZero = [513/1024 513/1024 0 1]; 
 %slmCoords = [slmCoords; slmZero];
@@ -85,3 +88,4 @@ slmCoords = [.65 .35 0 1]; % 0.
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
 
 slm.feed(Holo);
+bas.preview();

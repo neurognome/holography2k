@@ -12,8 +12,8 @@ N = numel(slm);
 
 disp('waiting for socket to send sequence number')
 order = control.read(300); 
-disp(['received sequence of length ' num2str(length(order))]);
-
+disp(['received sequence of length ' num2str(length(order{1}))]);
+disp(order)
 if any(cellfun(@max, order) > cellfun(@(x) size(x,3), holograms))
     disp('ERROR: Sequence error. blanking SLM...')
     blank = zeros(size(holograms,1),size(holograms,2));

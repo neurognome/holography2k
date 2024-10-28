@@ -46,14 +46,14 @@ nBurnHoles = size(XYtarg{1},2);
 
 baseFr = mean(fr(:,:,1:nOpto:end),3);%mean(fr(:,:,1:nOpto:end),3);%Probably more accurate to just do correct zoom, but sometimes having difficulty
 
-k=1;c=0; SIXYZ =[]; Frames=[];
-for i=2:numel(files) % start at 2 because the first frame is the "background"
+k=1;c=0; SIXYZ =[];
+for i=2:numel(files)
     t = tic;
-    fprintf(['Loading/Processing Frame ' files(i).name]);
+    fprintf(['Loading/Processing Frame ' num2str(i)]);
     try
         [dummy fr] = bigread3(fullfile(pth,files(i).name) );
         % REMOVE THIS
-        % fr = dummy;
+        fr = dummy;
         %
         if c>=nBurnHoles
             k=k+1;
@@ -79,11 +79,10 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             baseFilt = imgaussfilt(baseFrame,filtNum);
             
             
-            % toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
-            toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
-            toCalc = baseFilt - frameFilt;
+            toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
+            % toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
             % toCalc = -toCalc; % remove this later?
-            toCalc(mask)=0;
+            % toCalc(mask)=0;
             
             %             testFr = Frames{k}(:,:,c-1) - Frame;
             [ x,y ] =function_findcenter(toCalc);
@@ -101,6 +100,7 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             hold on
             scatter(y,x,[],'r')
             %             pause
+            keyboard
         else
             x = 0;
             y=0;
@@ -145,21 +145,21 @@ cam3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
 
-refAsk = SIXYZ(1:3,:)'; % detected points from the hole burn
-refGet = (cam3XYZ(1:3,:))'; % expected points?
-errScalar = 2;%2.5
+refAsk = SIXYZ(1:3,:)';
+refGet = (cam3XYZ(1:3,:))';
+errScalar = 2.5;
 
 figure(2594)
 clf
 
 subplot(1,2,1)
 aa = gca();
-[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,1, aa);
+[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0, aa);
 title('SI to Cam')
 
 subplot(1,2,2)
 aa = gca();
-[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,1, aa);
+[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0, aa);
 title('Cam to SI')
 
 CoC.CamToSI = CamToSI;
@@ -179,14 +179,13 @@ SIXYZ = SIXYZbackup;
 slm3XYZ=slm3XYZ(1:3,1:size(SIXYZ,2));
 
 excl = SIXYZ(1,:)<=5 | SIXYZ(1,:)>=507| SIXYZ(2,:)<=5 | SIXYZ(2,:)>=507;
-%excl = SIXYZ(1,:)<=100 | SIXYZ(1,:)>=300| SIXYZ(2,:)<=100 | SIXYZ(2,:)>=300;
 
 slm3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 1.3;
+errScalar = 2;
 
 figure(2616)
 clf
@@ -345,6 +344,9 @@ zlabel('Opto Depth')
 caxis([0 15])
 colorbar
 title('Simulated Z error, both methods')
+
+
+
 
 figure(600);clf
 subplot(1,2,1)

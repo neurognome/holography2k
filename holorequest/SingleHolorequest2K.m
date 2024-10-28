@@ -1,5 +1,5 @@
 clear; clc
-wavelength = [1030];%, 1030]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+wavelength = [607];%, 1030]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
 comm = HolochatInterface('holo');
 
@@ -26,12 +26,15 @@ for w = wavelength
     switch w
         case 589  % use 900 calibration for now
             c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
+        case 607
+            c = importdata('C:\Users\holos\Documents\calibs\21-Oct-2024_Calib_607.mat');
         case 900
             c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
         case 1100
             c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
         case 1030
-            c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\17-Oct-2024_Calib_1030.mat');
+            %c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
             % c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
     end
    calib = [calib, c]; 

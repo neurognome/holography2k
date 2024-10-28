@@ -8,6 +8,8 @@ switch wavelength
         slm = MeadowlarkOneK(2, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6902_at1100.lut');
     case 589
          slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at589.lut');
+    case 607
+         slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at607.lut');
     otherwise
         fprint('SLM wavelength not found (900, 1100, 1030).\n')
         return
