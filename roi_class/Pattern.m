@@ -1,4 +1,4 @@
-classdef Pattern < handle
+classdef Pattern < matlab.mixin.Copyable
     properties
         diffraction_efficiency % de of this pattern
         targets % targets present in this pattern
@@ -17,7 +17,7 @@ classdef Pattern < handle
 
             if nargin < 3 || isempty(zero_order_dump)
                 warning('Dumping power into zero order!!')
-                zero_order_dump = true;
+                zero_order_dump = false;
             end
             obj.zero_order_dump = zero_order_dump;
             obj.targets = targets;

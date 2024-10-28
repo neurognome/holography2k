@@ -8,8 +8,8 @@ clc
 close all;
 
 % fill this in
-wavelength = 900; % 900, 1100, 1030
-used_khz = 100;
+wavelength = 1030; % 900, 1100, 1030
+used_khz = 50;
 aom = 0.35;
 gate = 'uni';%'uni'; % or none or normal?
 
@@ -54,7 +54,7 @@ end
 disp('Devices connected.')
 
 %% 
-hwp.moveto(0); % start at 0
+hwp.set(0); % start at 0
 dq.write(0); % close shutter
 
 %%
@@ -70,7 +70,7 @@ initial_search_values = zeros(size(initial_search_queries));
 % start
 dq.write(1);
 for ii = 1:numel(initial_search_queries)
-    hwp.moveto(initial_search_queries(ii)); % move to deg
+    hwp.set(initial_search_queries(ii)); % move to deg
     pause(interStepPause);
 
     fprintf(v, ['sense:average:count ', num2str(nsamplesPM)]);
