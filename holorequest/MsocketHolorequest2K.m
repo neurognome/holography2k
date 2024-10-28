@@ -1,7 +1,7 @@
 % function MsocketHolorequest2K()
 % choose wavelengths
 clear; clc
-wavelength = 1030;%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+wavelength = [1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
 comm = HolochatInterface('holo');
 
@@ -26,12 +26,14 @@ Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 calib = [];
 for w = wavelength
     switch w
+        case 589  % use 900 calibration for now
+            c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\07-Nov-2023_Calib_900.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
         case 1100
-            c = importdata('C:\Users\holos\Documents\calibs\08-Nov-2023_Calib_1100.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
         case 1030
-            c = importdata ('C:\Users\holos\Documents\calibs\23-Apr-2024_Calib_1030.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
             % c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
     end
    calib = [calib, c]; 

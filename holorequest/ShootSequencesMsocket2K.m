@@ -24,12 +24,15 @@ if any(cellfun(@max, order) > cellfun(@(x) size(x,3), holograms))
 end
 
 timeout = false;
-counter = 1;
+counter = ones(numel(holograms), 1);
 
-while ~timeout && counter <= max(cellfun(@length, order))
-outcome = zeros(N, 1);
+while ~timeout && any(counter <= (cellfun(@numel, order)'))
+    outcome = zeros(N, 1);
     for ii = 1:N
-        slm(ii).feed(holograms{ii}(:, :, order{ii}(counter)));
+        if size(holograms{ii}, 3) >= counter(ii)
+            slm(ii).feed(holograms{ii}(:, :, order{ii}(counter(ii))));
+            counter(ii) = counter(ii) + 1;
+        end
     end
 
     for ii = 1:N
@@ -39,7 +42,7 @@ outcome = zeros(N, 1);
     if all(outcome == -1)
         timeout=true;
     end
-    counter = counter + 1;
+
 end
 
 if ~timeout
