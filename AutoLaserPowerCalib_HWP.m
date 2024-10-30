@@ -8,7 +8,7 @@ clc
 close all;
 
 % fill this in
-wavelength = 1030; % 900, 1100, 1030
+wavelength = 607; % 900, 1100, 1030
 used_khz = 50;
 aom = 0.35;
 gate = 'uni';%'uni'; % or none or normal?
@@ -47,7 +47,7 @@ switch wavelength
     case 1100
         dq.addoutput('Dev1', 'port0/line4', 'Digital'); % 0/5: 920, 0/6: 1100
         hwp = ELL14(SerialInterface(s), 2, 'hwp'); % 0: 900, 1:1100 % might need both? idk
-    case 1030
+    case 607
         dq.addoutput('Dev1', 'port0/line6', 'Digital');
         hwp = ELL14(SerialInterface(s), 3, 'hwp');
 end
