@@ -1,7 +1,7 @@
 % function MsocketHolorequest2K()
 % choose wavelengths
 clear; clc
-wavelength = [607];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+wavelength = [1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
 comm = HolochatInterface('holo');
 

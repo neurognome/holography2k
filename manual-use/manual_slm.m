@@ -85,7 +85,7 @@ slmCoords = [.4 .4 0 1]; % 0.
 %slmCoords = [slmCoords; slmZero];
 
 %[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
-[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,10 );
 
 slm.feed(Holo);
 bas.preview();

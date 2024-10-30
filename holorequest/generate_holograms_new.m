@@ -36,6 +36,15 @@ end
 %     disp('NO weights detected using flat weight')
 % end
 
+%% new, 241029
+% drop low DE's...
+DE_floor = 0.05;
+disp("DROPPING LOW DEs")
+for p = patterns
+    slm_coords = function_SItoSLM(p.targets, CoC);
+    p.targets(slm_coords(:, end) < DE_floor, :) = [];
+end
+
 
 %% this is changed
 % [AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
@@ -74,8 +83,6 @@ end
 % patterns
 
 arrayfun(@(x) x.calculate_DE(CoC), patterns)
-
-
 max_pattern_sz = max(arrayfun(@(x) size(x.targets, 1), patterns));
 ct = 1;
 for p = patterns
@@ -95,6 +102,9 @@ for p = patterns
     % for each pattern, we generate a hologram
     fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
     slm_coords = function_SItoSLM(p.targets, CoC);
+
+    % poo poo out low DEs?
+    % < slm_coords(:, end)
     % add a zero order for dump
     if p.zero_order_dump && (size(p.targets, 1)  < max_pattern_sz)
         slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias';
