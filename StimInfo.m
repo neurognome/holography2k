@@ -1,4 +1,4 @@
-classdef StimInfo < handle
+classdef StimInfo < matlab.mixin.Copyable
     properties
         sequence
         power
@@ -34,6 +34,13 @@ classdef StimInfo < handle
 
             out = to_check;
 
+        end
+
+        function out = to_struct(obj)
+            out = copy(obj);
+            out.sequence.patterns = struct(out.sequence.patterns);
+            out.sequence = struct(out.sequence);
+            out = struct(out);
         end
 
         % function out = trial_length(obj)
