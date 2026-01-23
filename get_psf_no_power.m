@@ -4,26 +4,26 @@ clear
 close all
 clc
 
-tBegin = tic;
+[Setup ] = function_loadparameters2();
+Setup.CGHMethod=2;
+Setup.GSoffset=0;
+Setup.verbose =0;
 
+
+tBegin = tic;
+wavelength = 900;
 disp('Setting up stuff...');
 
 makePaths()
-
-Setup = function_loadparameters2();
-Setup.CGHMethod = 2;
-Setup.GSoffset = 0;
-Setup.verbose = 0;
-Setup.useGPU = 1;
-Setup.SLM.is_onek = 1;
-
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
     g= gpuDevice;
 end
+slm = get_slm(wavelength);
 
-Setup.SLM = Function_Stop_SLM( Setup.SLM );
-Setup.SLM = Function_Start_SLM( Setup.SLM );
+slm.stop();
+slm.wait_for_trigger = 0;
+slm.start();
 
 sutter = sutterController();
 
@@ -31,6 +31,7 @@ bas = bascam();
 bas.start()
 
 disp('Setup complete.')
+
 %% look for objective in 1p
 
 bas.preview()
@@ -48,43 +49,40 @@ bas.preview()
 % this power will be used throughout the calibration and is appropriately
 % scaled for multi-target holograms and hole-burning
 
-pwr = 10;
-slmCoords = [513/1024, 513/1024  0.0 1];
+slmCoords = [0.4 , 0.4, 0, 1];
 % x = linspace(.3, .7, 3);
 % [x, y] = meshgrid(x, x);
 % slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 
 
-disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
-
 
 [Holo, Reconstruction, Masksg] = function_Make_3D_SHOT_Holos(Setup, slmCoords);
-Function_Feed_SLM(Setup.SLM, Holo);
-% bas.preview()
+slm.feed(Holo);
+bas.preview()
 
 %% check pixel val
-bgd_frames = bas.grab(10);
-bgd = mean(bgd_frames, 3);
-
-data = bas.grab(10);
-
-data = mean(data,3);
-frame = max(data-bgd, 0);
-[x,y] = function_findcenter(frame);
-
-frame_crop = data(x-20:x+20, y-20:y+20);
-
-figure(6)
-clf
-imagesc(frame_crop)
-axis square
-colorbar
-% clim([0 255])
-xL=xlim;
-yL=ylim;
-mx = max(frame_crop,[],"all");
-str = ['Peak Intensity: ' num2str(mx) ' A.U.'];
-text(0.03*xL(2),0.03*yL(2),str,'HorizontalAlignment','left','VerticalAlignment','top', 'Color','w')
+% bgd_frames = bas.grab(10);
+% bgd = mean(bgd_frames, 3);
+% 
+% data = bas.grab(10);
+% 
+% data = mean(data,3);
+% frame = max(data-bgd, 0);
+% [x,y] = function_findcenter(frame);
+% 
+% frame_crop = data(x-20:x+20, y-20:y+20);
+% 
+% figure(6)
+% clf
+% imagesc(frame_crop)
+% axis square
+% colorbar
+% % clim([0 255])
+% xL=xlim;
+% yL=ylim;
+% mx = max(frame_crop,[],"all");
+% str = ['Peak Intensity: ' num2str(mx) ' A.U.'];
+% text(0.03*xL(2),0.03*yL(2),str,'HorizontalAlignment','left','VerticalAlignment','top', 'Color','w')
 
 %% Measure background noise in camera
 
@@ -94,7 +92,7 @@ bgd = mean(bgd_frames, 3);
 meanBgd = mean(bgd_frames, 'all');
 stdBgd = std(double(bgd_frames), [], 'all');
 
-%%Collect PSF
+%% Collect PSF
 nframesCapture = 10;
 
 figure(1); clf
@@ -102,7 +100,7 @@ figure(1); clf
 sutter.setRef()
 
 sz = size(bgd);
-UZ= linspace(-70,70,21);
+UZ= linspace(-70,70,31);
 
 dataUZ = zeros([sz numel(UZ)]);
 
@@ -262,4 +260,4 @@ colorbar
 
 disp(['Max camera val: ' num2str(max(peakFrame(:)))])
 
-
+slm.blank()

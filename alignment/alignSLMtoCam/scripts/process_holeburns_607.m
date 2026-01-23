@@ -4,7 +4,7 @@ tMov = tic;
 
 %on ScanImage Computer
 % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''K:\Calib\Temp''';
+destination = '''K:\Calib\Temp2''';
 source = '''D:\Calib\Temp\calib*''';
 
 %clear invar
@@ -34,32 +34,26 @@ MovT= toc(tMov);
 comm.send('end', 'si');
 
 tLoad = tic;
-pth = 'K:\Calib\Temp';
+pth = 'K:\Calib\Temp2';
 files = dir(sprintf('%s\\*.tif', pth));
-
-% can we guess the bad one?
-for f = 2:numel(files)
-    timediff(f-1) = files(f).datenum - files(f - 1).datenum;
-end
-%
 
 baseN = eval(baseName);
 
 [dummy fr] = bigread3(fullfile(pth,files(1).name) );
 
 nOpto = numel(zsToBlast);
-nBurnHoles = size(XYtarg{1}, 2);
+nBurnHoles = size(XYtarg{1},2);
 
 baseFr = mean(fr(:,:,1:nOpto:end),3);%mean(fr(:,:,1:nOpto:end),3);%Probably more accurate to just do correct zoom, but sometimes having difficulty
 
-k=1;c=0; SIXYZ =[]; Frames=[];
-for i=2:numel(files) % start at 2 because the first frame is the "background"
+k=1;c=0; SIXYZ =[];
+for i=2:numel(files)
     t = tic;
-    fprintf(['Loading/Processing Frame ' files(i).name]);
-    % try
+    fprintf(['Loading/Processing Frame ' num2str(i)]);
+    try
         [dummy fr] = bigread3(fullfile(pth,files(i).name) );
         % REMOVE THIS
-      %   fr = dummy;
+        fr = dummy;
         %
         if c>=nBurnHoles
             k=k+1;
@@ -75,20 +69,19 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             baseFrame = Frames{k}(:,:,c-1);
             
             %try to exclude those very bright spots
-            % maskFR = imgaussfilt(Frame,3) - imgaussfilt(Frame,16);
-            % mask = maskFR > mean(maskFR(:))+3*std(maskFR(:));
+            maskFR = imgaussfilt(Frame,3) - imgaussfilt(Frame,16);
+            mask = maskFR > mean(maskFR(:))+6*std(maskFR(:));
             % mask = maskFR < mean(maskFR(:))+6*std(maskFR(:));
             
             %remove the low frequency slide illumination differences
-            filtNum = 2;
+            filtNum = 3;
             frameFilt = imgaussfilt(Frame,filtNum);
             baseFilt = imgaussfilt(baseFrame,filtNum);
             
             
-            % toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
-        %    toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
-            toCalc = baseFilt - frameFilt;
-           % toCalc = -toCalc; % remove this later?
+            toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
+            % toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
+            % toCalc = -toCalc; % remove this later?
             % toCalc(mask)=0;
             
             %             testFr = Frames{k}(:,:,c-1) - Frame;
@@ -107,15 +100,16 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             hold on
             scatter(y,x,[],'r')
             %             pause
+            keyboard
         else
             x = 0;
             y=0;
         end
-    % catch
-    %     fprintf('\nError in Hole analysis... probably loading.')
-    %     x = 0;
-    %     y=0;
-    % end
+    catch
+        fprintf('\nError in Hole analysis... probably loading.')
+        x = 0;
+        y=0;
+    end
     
     
     SIXYZ(:,end+1) = [x,y,zsToBlast(k)];
@@ -140,7 +134,6 @@ SIXYZ = SIXYZbackup;
 
 cam3XYZ=cam3XYZ(:,1:size(SIXYZ,2));
 
-
 figure(666)
 clf
 % scatter3(cam3XYZ(1,:), cam3XYZ(2,:), cam3XYZ(3,:), [], '*')
@@ -152,21 +145,21 @@ cam3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
 
-refAsk = SIXYZ(1:3,:)'; % detected points from the hole burn
-refGet = (cam3XYZ(1:3,:))'; % expected points?
-errScalar = 3;%2.5
+refAsk = SIXYZ(1:3,:)';
+refGet = (cam3XYZ(1:3,:))';
+errScalar = 2.5;
 
 figure(2594)
 clf
 
 subplot(1,2,1)
 aa = gca();
-[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,1, aa);
+[SItoCam, trialN] = function_3DCoCIterative(refAsk,refGet,modelterms,errScalar,0, aa);
 title('SI to Cam')
 
 subplot(1,2,2)
 aa = gca();
-[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,1, aa);
+[CamToSI, trialN] = function_3DCoCIterative(refGet,refAsk,modelterms,errScalar,0, aa);
 title('Cam to SI')
 
 CoC.CamToSI = CamToSI;
@@ -186,14 +179,13 @@ SIXYZ = SIXYZbackup;
 slm3XYZ=slm3XYZ(1:3,1:size(SIXYZ,2));
 
 excl = SIXYZ(1,:)<=5 | SIXYZ(1,:)>=507| SIXYZ(2,:)<=5 | SIXYZ(2,:)>=507;
-%excl = SIXYZ(1,:)<=100 | SIXYZ(1,:)>=300| SIXYZ(2,:)<=100 | SIXYZ(2,:)>=300;
 
 slm3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 2.5;
+errScalar = 2;
 
 figure(2616)
 clf
@@ -218,7 +210,7 @@ numTest = 10000;
 
 rangeX = [0 511];%[0 511];
 rangeY = [0 511];%[0 511];
-rangeZ = [0 90];% Make Sure to match this to the correct range for this optotune;
+rangeZ = [0 55];% Make Sure to match this to the correct range for this optotune;
 
 clear test;
 valX = round((rangeX(2)-rangeX(1)).*rand(numTest,1)+rangeX(1));
@@ -352,6 +344,9 @@ zlabel('Opto Depth')
 caxis([0 15])
 colorbar
 title('Simulated Z error, both methods')
+
+
+
 
 figure(600);clf
 subplot(1,2,1)

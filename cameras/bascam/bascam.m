@@ -72,6 +72,29 @@ classdef bascam < handle
             end
         end
 
+        function preview_set_cmax(obj, cmax)
+            f = figure('Name','Basler Preview', 'NumberTitle','off');
+            f.Position = [817 712 1000 800];
+            movegui(f, 'center')
+            hImage = imagesc(obj.grab(1));
+            caxis([0 cmax])
+            colormapeditor
+            while isgraphics(f)
+                frame = obj.grab(1);
+                currentxlim = xlim;
+                currentylim = ylim;
+                currentclim = clim;
+                set(hImage, 'cdata', frame)
+                ylim(currentylim);
+                xlim(currentxlim);
+                clim(currentclim);
+                %axis image
+                
+                colorbar
+                pause(.01)
+            end
+        end
+
         function frames = grab(obj, nframes)
             if obj.vid.FramesPerTrigger ~= nframes
                 obj.stop()
@@ -89,9 +112,9 @@ classdef bascam < handle
             end
         end
 
-        function set.exposure(obj, exposure)
+        function set_exposure(obj, exposure)
             obj.stop()
-            obj.src.exposure = exposure;
+            obj.src.Exposure = exposure;
             obj.start()
         end
 

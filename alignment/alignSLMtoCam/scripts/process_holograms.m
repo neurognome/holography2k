@@ -70,9 +70,11 @@ basXYZ = basXYZBackup2;
 basVal = basValBackup2;
 FWHMVal = FWHMBackup2;%added 7/20/2020 -Ian
 
+% Below, we remove any of the "max" ones, because we have dead pixels that
+% always register as "max"
 excludeTrials = all(basXYZ(1:2,:)==[1 1]'); %hayley's understanding: if bas x and y are both one, exclude this trial
 
-excludeTrials = excludeTrials | basVal>camMax; %max of this camera is 255
+% excludeTrials = excludeTrials | basVal>camMax; %max of this camera is 255
 
 basDimensions = size(Bgdframe);
 excludeTrials = excludeTrials | basXYZ(1,:)>=basDimensions(1)-1;
@@ -82,9 +84,9 @@ excludeTrials = excludeTrials | basXYZ(3,:)>200;
 
 
 excludeTrials = excludeTrials | any(isnan(basXYZ(:,:)));
-excludeTrials = excludeTrials | basVal<2; %  02Nov2023 KS changedi from 10 --> 2
+excludeTrials = excludeTrials | basVal<10; %  02Nov2023 KS changedi from 10 --> 2
 % excludeTrials = excludeTrials | basVal>(mean(basVal)+3*std(basVal)); %9/13/19 Ian Add
-excludeTrials = excludeTrials | basVal>250;
+%excludeTrials = excludeTrials | basVal>250;
 
 slmXYZBackup = slmXYZ(:,~excludeTrials);
 basXYZBackup = basXYZ(:,~excludeTrials);
@@ -139,14 +141,14 @@ reOrder = randperm(size(slmXYZ,2));
 slmXYZ = slmXYZ(:,reOrder);
 basXYZ = basXYZ(:,reOrder);
 
-holdback = 10;%50;
+holdback = 50;%50;
 
 refAsk = (slmXYZ(1:3,1:end-holdback))';
 refGet = (basXYZ(1:3,1:end-holdback))';
 
 %  SLMtoCam = function_3DCoC(refAsk,refGet,modelterms);
 
-errScalar = 2; %2.8;%2.5;
+errScalar = 2.5; %2.8;%2.5;
 figure(1286);
 clf
 ax = gca();
@@ -436,39 +438,6 @@ ylabel('Camera Y Pixels')
 % axis equal
 axis image
 
-nBurnGrid = 8; %number of points in the burn grid
-xpts = linspace(SImatchRangeX(1),SImatchRangeX(2),nBurnGrid);
-ypts = linspace(SImatchRangeY(1),SImatchRangeY(2),nBurnGrid);
-
-
-XYpts =[];
-for i=1:nBurnGrid
-    for k=1:nBurnGrid
-        XYpts(:,end+1) = [xpts(i) ypts(k)];
-    end
-end
-
-XYptsInBounds = inpolygon(XYpts(1,:),XYpts(2,:),SIxboundary,SIyboundary);
-XYpts = XYpts(:,XYptsInBounds);
-
-%figure out spacing of pts across zs
-zsToBlast = zsToUse;% match to SI Calib %linspace(0,90,11);% Changed to account for newer optotune 9/28/20; Changed to account for new optotune range 9/19/19 by Ian 0:10:80; %OptoPlanes to Blast
-interXdist = xpts(2)-xpts(1);
-interYdist = ypts(2)-ypts(1);
-
-gridSide = ceil(sqrt(numel(zsToBlast)));
-xOff = round(interXdist/gridSide);
-yOff = round(interYdist/gridSide);
-
-%Turn into a more unique looking pattern
-numPts = size(XYpts,2);
-FractionOmit = 0.1; %changed down to 10% from 25% bc not really needed. 9/19/19 by Ian
-XYpts(:,randperm(numPts,round(numPts*FractionOmit)))=[];
-XYpts = reshape(XYpts,[2 numel(XYpts)/2]);
-
-disp([num2str(size(XYpts,2)) ' points per plane selected. ' num2str(size(XYpts,2)*numel(zsToBlast)) ' total'])
-
-intermediateFitsT = toc(tIntermediateFine);
 %{
 %% Simulate and create new Fine POints
 % do a CoC to get more points to shoot

@@ -22,7 +22,7 @@ while go
     Get = function_Eval3DCoC(CoC,refAsk);
     RMS = sqrt(sum((Get-refGet).^2,2));
     
-    errs = RMS>mean(RMS)+std(RMS)*errScalar;
+    errs = RMS > mean(RMS)+std(RMS)*errScalar;
     %%slow way might be better
     if slowway
         if sum(errs)>0;
@@ -36,7 +36,7 @@ while go
     disp(['Pass ' num2str(c) '. RMS error: ' num2str(mean(RMS)) '. Trials to exclude: ' num2str(sum(errs))]);
     end
     if sum(errs)==0 || c>nIter || (numel(trialN)-sum(errs))<=size(modelterms,1)
-        go=0;
+        go=0; 
         disp('Converged as much as we want')
         if (numel(trialN)-sum(errs))<=size(modelterms,1)
             disp(['Error Did Not Converge!'])

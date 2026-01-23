@@ -33,7 +33,7 @@ slm_900.wait_for_trigger = 0;
 slm_900.start();
 %%
 %slmCoords = [.54 .46 0 1];
-slmCoords = [.6 .4 0 1];
+slmCoords = [.4 .4 0.03 1];
 
 % %
 % 
@@ -54,10 +54,11 @@ slmCoords = [.6 .4 0 1];
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 %slm_1100.feed(zeros(1024, 1024));
 slm_1100.feed(Holo);
-
+slm_900.feed(Holo);
+bas.preview()
 %%
 %slmCoords = [.475 .52 -.0 1]; % 0.
-slmCoords = [.375 .37 0 1]; % 0.  
+slmCoords = [.4 .4 0.15 1]; % 0.  
 %slmCoords = [.4 .4 0 1]; % 0.  
 
 % dxy = .02;
@@ -70,4 +71,4 @@ slmCoords = [.375 .37 0 1]; % 0.
 %slm_900.feed(zeros(1024, 1024));
 slm_900.feed(Holo);%%
 
-% bas.preview()
+bas.preview()

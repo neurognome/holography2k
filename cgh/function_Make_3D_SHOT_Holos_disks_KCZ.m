@@ -62,10 +62,58 @@ if disk_radius ~= 0
         syy = yy(select);
         spower = power(select);
         for j = 1:numel(sxx)
-            Masks(sxx(j)-disk_radius*n_sigma:sxx(j)+disk_radius*n_sigma,...
-                syy(j)-disk_radius*n_sigma:syy(j)+disk_radius*n_sigma,i) = spower(j)*disk;
+            % r_start = sxx(j)-disk_radius*n_sigma;
+            % r_end = sxx(j)+disk_radius*n_sigma;
+            % c_start = syy(j)-disk_radius*n_sigma;
+            % c_end = syy(j)+disk_radius*n_sigma;
+            % Masks(r_start:r_end, c_start:c_end,i) = spower(j)*disk;
+
+            % chatgpt code to handle edge cases:
+
+            % Define the start and end indices
+            r_start = sxx(j) - disk_radius * n_sigma;
+            r_end = sxx(j) + disk_radius * n_sigma;
+            c_start = syy(j) - disk_radius * n_sigma;
+            c_end = syy(j) + disk_radius * n_sigma;
+            
+            % Get the size of the Masks array
+            [mask_rows, mask_cols, ~] = size(Masks);
+            
+            % Check and adjust row indices
+            if r_start < 1
+                disk_r_start = 2 - r_start; % Adjust start index for disk
+                r_start = 1;
+            else
+                disk_r_start = 1;
+            end
+            
+            if r_end > mask_rows
+                disk_r_end = size(disk, 1) - (r_end - mask_rows);
+                r_end = mask_rows;
+            else
+                disk_r_end = size(disk, 1);
+            end
+            
+            % Check and adjust column indices
+            if c_start < 1
+                disk_c_start = 2 - c_start; % Adjust start index for disk
+                c_start = 1;
+            else
+                disk_c_start = 1;
+            end
+            
+            if c_end > mask_cols
+                disk_c_end = size(disk, 2) - (c_end - mask_cols);
+                c_end = mask_cols;
+            else
+                disk_c_end = size(disk, 2);
+            end
+            
+            % Place the cropped disk into Masks
+            Masks(r_start:r_end, c_start:c_end, i) = spower(j) * disk(disk_r_start:disk_r_end, disk_c_start:disk_c_end);
         end
     end
+    
 else
     
     for i = 1:NZ
@@ -79,6 +127,7 @@ else
     end
 
 end
+
 
 Masksg = Masks;
 

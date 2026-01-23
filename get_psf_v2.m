@@ -4,7 +4,7 @@ clear
 close all
 clc
 %%
-wavelength = 1030;
+wavelength = 1100;
 tBegin = tic;
 
 disp('Setting up stuff...');
@@ -75,7 +75,7 @@ fprintf('done.\r')
 % scaled for multi-target holograms and hole-burning
 
     pwr = .1; %.75/64*16;
-slmCoords = [0.4 0.4 0.12 1]; % scanimage alignd: [.4 .4 0.08 1]; %
+slmCoords = [0.4 0.4 0.12*0 1]; % scanimage alignd: [.4 .4 0.08 1]; %
 
 disp(['Individual hologram power set to ' num2str(pwr) 'mW.'])
 % 

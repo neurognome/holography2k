@@ -31,10 +31,7 @@ blankHolo = zeros([1024 1024]);
 
 %%
 
-slm_1030.stop();
-slm_1030.wait_for_trigger = 0;
-slm_1030.start();
-
+open 
 %%
 % slmCoords = [.44 .61 0 1]; % 0.
 slmCoords = [0.4 0.4 0.02 1];

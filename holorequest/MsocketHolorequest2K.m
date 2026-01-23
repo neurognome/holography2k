@@ -1,7 +1,8 @@
 % function MsocketHolorequest2K()
 % choose wavelengths
-clear; clc
-wavelength = 1030;%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+%clear; clc
+wavelength = [1100 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+%% 
 
 comm = HolochatInterface('holo');
 
@@ -10,10 +11,14 @@ timeout = 1700;
 addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
 addpath(genpath('C:\Users\holos\Desktop\meadowlark'))
 
-Setup = function_loadparameters3();
+% Setup = function_loadparameters3(); % previously, we ran this one, but
+% now let's try 2...
+
+Setup = function_loadparameters2();
 Setup.CGHMethod = 2; % now defaults to GSS
+
 Setup.verbose = 0;
-% Setup.useGPU = 1; % now defaults to GPU
+Setup.useGPU = 1; % now defaults to GPU
 
 cycleiterations = 1; % Change this number to repeat the sequence N times instead of just once
 
@@ -26,34 +31,34 @@ Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 calib = [];
 for w = wavelength
     switch w
+        case 589  % use 900 calibration for now
+            c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
+        case 607
+            c = importdata('C:\Users\holos\Documents\calibs\12-Nov-2024_Calib_607.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\07-Nov-2023_Calib_900.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_900.mat');
         case 1100
-            c = importdata('C:\Users\holos\Documents\calibs\08-Nov-2023_Calib_1100.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_1100.mat');
         case 1030
-            c = importdata ('C:\Users\holos\Documents\calibs\23-Apr-2024_Calib_1030.mat');
-            % c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030.mat');
+            % idk why it's doing this... but whatever
+            c = rmfield(c, {'FitX', 'FitY', 'FitZ'});
     end
-   calib = [calib, c]; 
+    calib = [calib, c];
 end
 
-sequences = {};
+holograms = cell(1, numel(wavelength));
 for w = 1:numel(wavelength)
     fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
-    hololist = generate_holograms(comm, Setup, calib(w));
+    hololist = generate_holograms_new(comm, Setup, calib(w));
     % hololist = generate_holograms2D(comm, Setup, calib(w));
-    sequences{end+1} = uint8(hololist);
+    holograms{w} = uint8(hololist);
 end
+% holograms contains the phase masks, 1 x n_slms, each is an Nx x Ny x
+% patterns, each pattern is a specific hologram
 
-% fprintf('Waiting for holorequest for 900nm...\n')
-% hololist_900 = generate_holograms(control, Setup, CoC_900); 
-% fprintf('Waiting for holorequest for 1100nm...\n')
-% hololist_1100 = generate_holograms(control, Setup, CoC_1100);
 fprintf('All holorequests received.\n')
 
-%totally remove sequences as a thing that exists basically
-% sequences = {uint8(hololist_900), uint8(hololist_1100)}; %shouldn't change anything added 9/14/21
-% slm = [get_slm(900), get_slm(1100)];
 slm = [];
 for w = wavelength
     slm = [slm, get_slm(w)];
@@ -74,7 +79,7 @@ end
 orderBackup=[]; %Sequence list is archived in case the daq errors. normally disposed of after exp. 1/19/21
 c=1;
 while true
-    orderBackup{c} = ShootSequencesMsocket2K(slm, sequences, comm);
+    orderBackup{c} = ShootSequencesMsocket2K(slm, holograms, comm);
     c=c+1;
 end
 

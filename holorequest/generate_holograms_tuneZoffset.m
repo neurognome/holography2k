@@ -1,18 +1,63 @@
-function hololist = generate_holograms(comm, Setup, CoC)
+function [hololist,varargout] = generate_holograms_tuneZoffset(comm, Setup, CoC, varargin)
 
-x = 1;     
-HRin = []; 
-while isempty(HRin)
-    HRin = comm.read(0.5);
-    % HRin = control.io.read();%msrecv(control.io.socket,.5);
+x = 1;   
+xyOffset = [0,0];
+if nargin < 5
+    HRin = []; 
+    while isempty(HRin)
+        HRin = comm.read(0.5);
+        % HRin = control.io.read();%msrecv(control.io.socket,.5);
+    
+        % if ~isempty(HRin);
+        % 
+        %     x=0;
+        % end
+    end
+    disp('new File Detected - running HoloRequest')
+    holoRequest = HRin;
+else
+    idx = 1;
+    while idx<=length(varargin)
+        switch lower(varargin{idx})
+            case {'loc','location','position','pos','target'}
+                loc2use = varargin{idx+1};
+                idx = idx+2;
+            case {'lateral offset','xy offset'}
+                xyOffset = varargin{idx+1};
+                idx = idx +2;
+            case {'axial offset','z offset'}
+                zoff = varargin{idx+1};
+                idx = idx +2;
+            otherwise
+                error('Supported options are ''loc'', ''xy offset'', and ''z offset''.');
+        end
+    end
+    
+    if ~exist("loc2use",'var')
+        HRin = []; 
+        while isempty(HRin)
+            HRin = comm.read(0.5);
+        end
+        disp('new File Detected - running HoloRequest')
+        temp = HRin;
+        loc2use = temp.targets;
+    end
+    loc2use = loc2use + xyOffset;
 
-    % if ~isempty(HRin);
-    % 
-    %     x=0;
-    % end
+
+    holoRequest = struct("hologram_config",'DLS',...
+    "ignoreROIdata", 1,...
+    "objective", 20,...
+    "rois", cell(1),...
+    "scale", 1.000,...
+    "spot_radius", 0,...
+    "targets", loc2use,...
+    "xoffset", 16.2000,...
+    "yoffset", -16.2000,...
+    "zRemapping", 0,...
+    "zoom", 1);
+    holoRequest.rois{1} = 1:(numel(loc2use)/3);
 end
-disp('new File Detected - running HoloRequest')
-holoRequest = HRin;
 
 
 % if ~iscell(holoRequest.rois)
@@ -158,7 +203,7 @@ elseif numSolo<40
             [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
             holoRequest.spot_radius
         else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
+            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_tuneZ( Setup,subcoordinates',zoff );
         end
         hololist(:,:,j) = Hologram;
     end
@@ -184,7 +229,7 @@ else
         if holoRequest.spot_radius > 0
             [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
         else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
+            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_tuneZ( Setup,subcoordinates', zoff );
         end
         temphololist(:,:,j) = Hologram;
     end
@@ -221,7 +266,7 @@ else
             [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
             holoRequest.spot_radius
         else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
+            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_tuneZ( Setup,subcoordinates', zoff );
         end
         temphololist(:,:,j) = Hologram;
     end
@@ -258,7 +303,7 @@ else
             [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
             holoRequest.spot_radius
         else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
+            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_tuneZ( Setup,subcoordinates', zoff );
         end
         temphololist(:,:,j) = Hologram;
     end
@@ -288,10 +333,16 @@ else
             [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,subcoordinates', holoRequest.spot_radius );
             holoRequest.spot_radius
         else  % old behavior
-            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos( Setup,subcoordinates' );
+            [ Hologram,Reconstruction,Masksg ] = function_Make_3D_SHOT_Holos_tuneZ( Setup,subcoordinates', zoff );
         end
         hololist(:,:,j) = Hologram;
     end
 end 
+
+disp(['Focus at ',num2str(numel(holoRequest.targets)/3),' spot(s):']);
+disp(holoRequest.targets - xyOffset);
+if nargout > 1
+    varargout{1} = holoRequest.targets - xyOffset;
+end
 
 disp('Done')

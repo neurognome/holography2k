@@ -1,82 +1,131 @@
-function hololist = generate_holograms(comm, Setup, CoC)
+function hololist = generate_holograms_new(comm, Setup, CoC)
 
 x = 1;     
 HRin = []; 
 while isempty(HRin)
     HRin = comm.read(0.5);
-    % HRin = control.io.read();%msrecv(control.io.socket,.5);
-
-    % if ~isempty(HRin);
-    % 
-    %     x=0;
-    % end
 end
 disp('new File Detected - running HoloRequest')
 holoRequest = HRin;
 
 
-% if ~iscell(holoRequest.rois)
-% holoRequest.rois = {holoRequest.rois};
-% disp('Forced convert...')
-% end
-%%Load SI Coordinates
-
-
-if ~isfield(holoRequest,'ignoreROIdata')  %if we're doing things the old way
-    try
-        load([Setup.Holorequestpath 'ROIData.mat']);
-    catch
-        disp('No ROIData file')
-        return
-    end
-    LN = numel(ROIdata.rois);
-    SICoordinates = zeros(3,LN);
-    for i = 1:LN
-        u = mean(ROIdata.rois(i).vertices);
-        u(1)=u(1)+holoRequest.xoffset;
-        u(2)=u(2)+holoRequest.yoffset;
-        
-        SICoordinates(1:2,i) = u;
-        SICoordinates(3,i) = ROIdata.rois(i).OptotuneDepth;
-    end
-    SLMCoordinates = zeros(4,LN);
-    
-else  %if I'm doing a custom sequence
-  LN = size(holoRequest.targets,1);
-    SLMCoordinates = zeros(4,LN);  
-    SICoordinates = holoRequest.targets;
-
-    % KCZ modified to allow for scale; should do nothing if scale=1
-    scale = holoRequest.scale;
+patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
+og_dims = size(patterns);
+patterns = patterns(:)';
+% KCZ modified to allow for scale; should do nothing if scale=1
+scale = holoRequest.scale;
+for p = patterns
     if scale ~= 1
         % center to 0,0, scale, then decenter
         scale_center = [.5, .5];
-        SICoordinates(:,1)=scale*(SICoordinates(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
-        SICoordinates(:,2)=scale*(SICoordinates(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2); 
 
-    else  % old behavior
-        SICoordinates(:,1)=SICoordinates(:,1)+holoRequest.xoffset;
-        SICoordinates(:,2)=SICoordinates(:,2)+holoRequest.yoffset;   
+        p.targets(:,1)=scale*(p.targets(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
+        p.targets(:,2)=scale*(p.targets(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2);
+    else  % old behavior-
+        p.targets(:,1)=p.targets(:,1)+holoRequest.xoffset;
+        p.targets(:,2)=p.targets(:,2)+holoRequest.yoffset;
     end
-    SICoordinates=SICoordinates';
 end
+
 %%quickly compute DEs and return them over msocket
+% 
+% if isfield(holoRequest,'roiWeights')
+%     weightsToUse = holoRequest.roiWeights;
+%     weightsToUse(isnan(weightsToUse))=1;
+%     disp('Weighting Holograms based on roiWeights')
+% else
+%     weightsToUse = ones([1 LN]);
+%     disp('NO weights detected using flat weight')
+% end
 
-if isfield(holoRequest,'roiWeights')
-    weightsToUse = holoRequest.roiWeights;
-    weightsToUse(isnan(weightsToUse))=1;
-    disp('Weighting Holograms based on roiWeights')
-else
-    weightsToUse = ones([1 LN]);
-    disp('NO weights detected using flat weight')
+%% new, 241029
+% drop low DE's...
+DE_floor = 0.05;
+disp("DROPPING LOW DEs")
+for p = patterns
+    slm_coords = function_SItoSLM(p.targets, CoC);
+    p.targets(slm_coords(:, end) < DE_floor, :) = [];
 end
 
-[AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
 
+%% this is changed
+% [AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
+% ok how
+% expose this function
+% function [AttenuationCoeffs, DElist] = computeDEfromList(SICoordinates,ROIs,weights)
+
+%load current CoC
+
+% %catch targets that are below minimal diffraction efficiency 
+% DEfloor = 0.05;
+% 
+% [SLMCoordinates] = function_SItoSLM(SICoordinates',CoC)';
+% AttenuationCoeffs =SLMCoordinates(4,:);
+% lowDE = AttenuationCoeffs<DEfloor;
+% AttenuationCoeffs(lowDE)=DEfloor;
+% disp([num2str(sum(lowDE)) ' Target(s) below Diffraction Efficiency floor (' num2str(DEfloor) ').']);
+
+
+% if size(weights,1)~=1
+%     weights=weights';
+% end
+% 
+% for i=1:numel(ROIs)
+%     ROIselection =ROIs{i};
+%     myattenuation = AttenuationCoeffs(ROIselection);
+%     energy = 1./myattenuation;
+%     energy = energy.*weights(ROIselection);
+%     energy = energy/sum(energy);
+%     DElist(i) = sum(energy.*myattenuation);
+% end
+
+
+% send back the patterns
 % control.io.send(DE_list)
-comm.send(DE_list, 'daq');
-disp('Sent DE to master');
+% patterns
 
+arrayfun(@(x) x.calculate_DE(CoC), patterns)
+max_pattern_sz = max(arrayfun(@(x) size(x.targets, 1), patterns));
+ct = 1;
+for p = patterns
+    p.id = ct;
+    p.powerbias = p.powerbias * (length(p.powerbias)/max_pattern_sz);
+    ct = ct + 1;
+end
+
+% here we should calculate any power biases before sending it back
+
+comm.send(arrayfun(@struct, reshape(patterns, og_dims)), 'daq'); % reshape patterns to the og format
+disp('Sent patterns back to DAQ');
+
+ct = 1;
+hololist = zeros(Setup.Nx, Setup.Ny, numel(patterns));
+for p = patterns
+    % for each pattern, we generate a hologram
+    fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
+    slm_coords = function_SItoSLM(p.targets, CoC); % this returns the 4th as an "attenuation", we want to inverse this, as in the original code
+
+    slm_coords(:, 4) = 1./slm_coords(:, 4);
+    % poo poo out low DEs?
+    % add a zero order for dump
+    if p.zero_order_dump && (size(p.targets, 1)  < max_pattern_sz)
+        slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias';
+        warning('Fixed laser power, dumping into 0 order...')
+        slm_coords = cat(1, slm_coords, [0.5, 0.5, 0,  1 - sum(slm_coords(:, 4))]);
+    end
+    disp(slm_coords)
+    if holoRequest.spot_radius > 0
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, slm_coords, holoRequest.spot_radius);
+    else  % old behavior
+        hololist(:, :, ct) = function_Make_3D_SHOT_Holos(Setup, slm_coords);
+    end
+
+    ct = ct + 1;
+end
+
+
+
+%{
 %%Compute SLM Coordinates
 DEfloor = 0.05;
 
@@ -209,7 +258,7 @@ else
         delete(p);
         parpool(4);
     end
-    for j=1:numMid
+    parfor j=1:numMid
         disp(['Now compiling hologram ' int2str(j) ' of ' int2str(numel(mids))])
         ROIselection =ROIs{j};
         myattenuation = AttenuationCoeffs(ROIselection);
@@ -293,5 +342,5 @@ else
         hololist(:,:,j) = Hologram;
     end
 end 
-
+%}
 disp('Done')

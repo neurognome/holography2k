@@ -11,6 +11,7 @@ close all;
 wavelength = 1100; % 900, 1100, 1030
 used_khz = 250;
 aom = 0.30;
+
 gate = 'uni';%'uni'; % or none or normal?
 
 save_base = 'C:\Users\holos\Documents\power-calibrations\';
@@ -45,7 +46,6 @@ switch wavelength
         tpm.set_wavelength(960);
     case 1100
         dq.addoutput('Dev1', 'port0/line4', 'Digital'); % 0/5: 920, 0/6: 1100
-        hwp = ELL14(SerialInterface(s), 2, 'hwp'); % 0: 900, 1:1100 % might need both? idk
         tpm.set_wavelength(1100);
     case 1030
         dq.addoutput('Dev1', 'port0/line6', 'Digital');
