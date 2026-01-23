@@ -1,9 +1,9 @@
 function slm = get_slm(wavelength)
 switch wavelength
     case 900
-        slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at900.lut');
+        slm = MeadowlarkOneK(1, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6490_at940.lut');
     case 1100
-        slm = MeadowlarkOneK(2, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6902_at1100.lut');
+        slm = MeadowlarkOneK(2, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6902_at1150.lut');
     case 1030
         slm = MeadowlarkOneK(2, 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files\slm6902_at1100.lut');
     case 589

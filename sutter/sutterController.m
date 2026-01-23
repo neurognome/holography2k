@@ -15,7 +15,7 @@ classdef sutterController < handle
 
     properties (Constant)
         vscaleFactor = 10;
-        stepMult = 25;
+        stepMult = 100/3;
     end
 
     methods

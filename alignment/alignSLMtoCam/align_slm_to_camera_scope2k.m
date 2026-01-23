@@ -30,7 +30,7 @@ Setup.useThorCam =0;
 Setup.maxFramesPerAcquire = 3; %set to 0 for unlimited (frames will return will be
 Setup.camExposureTime = 10000;
 
-calibration_wavelength = 900; 
+calibration_wavelength = 1100; 
 
 if Setup.useGPU
     disp('Getting gpu...'); %this can sometimes take a while at initialization
@@ -65,15 +65,15 @@ comm = HolochatInterface('holo');
 comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 1.2;
-disp(['individual hologra' ...
+pwr = 50; %in mW %0.25 normally
+disp(['idividual hologra' ...
     'm; power set to ' num2str(pwr) 'mW']);
 
 
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [0.4 0.4 0 1]; % 0.
+slmCoords = [0.7 0.7 0.0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -116,7 +116,7 @@ disp('Make sure both lasers are on and the shutters open')
 disp('Scanimage should be idle, nearly in plane with focus. and with the gain set high enough to see most of the FOV without saturating')
 disp('THE MOUSE MONITOR SHOULD BE TURNED OFF')
 
-sutter.moveZ(-100);
+sutter.moveZ(100);
 disp('testing the sutter double check that it moved to reference +100');
 input('Ready to go (Press any key to continue)');
 
@@ -127,14 +127,18 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.15 0.85];%1030 or 1100
-slmYrange = [0.12 0.85];%1030
-% slmXrange = [0.15 0.85];%607 or 900
+slmXrange = [0.18 0.9];%1030 or 1100
+slmYrange = [0.0 0.9];%1030
+% slmXrange = [0.15 0.85];%607 or 9001
 % slmYrange = [0.15 0.85];%607
+% slmXrange = [0.1 0.9];%607
+% slmYrange = [0.1 0.9];%607
+
 
 % set Z range
-slmZrange = [-0.03 0.15];%1030
-% slmZrange = [-0.04 0.2];%607
+slmZrange = [-0.05 0.08];%1030
+%slmZrange = [-0.10 0.03];%607
+
 if ~reloadHolos
     create_holograms
 else
@@ -180,7 +184,7 @@ imagesc(Bgd)
 disp('Begining SI Depth calibration, we do this first incase spots burn holes with holograms')
 clear SIdepthData
 
-zsToUse = linspace(0,70,15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
+zsToUse = linspace(0, 90, 15);% %70 was about 125um on 3/11/21 %Newer optotune has more normal ranges 9/28/29; New Optotune has different range 9/19/19; [0:10:89]; %Scan Image Maxes out at 89
 
 SIUZ = -15:5:130;% linspace(-120,200,SIpts);
 SIpts = numel(SIUZ);
@@ -235,7 +239,7 @@ for k =1:numel(zsToUse)
     for i = 1:numel(SIUZ)
         fprintf([num2str(round(SIUZ(i))) ' ']);
         
-        sutter.moveZ(-SIUZ(i));
+        sutter.moveZ(SIUZ(i));
 
         if i==1
             pause(3)
@@ -346,7 +350,7 @@ tstart=tic;%Coarse Data Timer
 
 disp('Begining Coarse Holo spot finding')
 coarsePts = 9; %odd number please
-coarseUZ = linspace(-25,150,coarsePts);
+coarseUZ = linspace(-25,150, coarsePts);
 comm.send([0, 1, 1], 'daq');
 
 invar='flush';
@@ -373,7 +377,7 @@ figure(1234);
 for i = 1:numel(coarseUZ)
     fprintf(['First Pass Holo, Depth: ' num2str(coarseUZ(i)) '. Holo : '])
     t = tic;
-    sutter.moveZ(-coarseUZ(i))
+    sutter.moveZ(coarseUZ(i))
     
     if i==1
         pause(2)
@@ -495,7 +499,7 @@ for i = 1:planes
         % for every sutter z plane
         for k = 1:finePts
             fprintf([num2str(round(fineUZ(k))) ' ']);
-            sutter.moveZ(-fineUZ(k));
+            sutter.moveZ(fineUZ(k));
             
             if i==1
                 pause(1)
@@ -635,7 +639,8 @@ tCompileBurn = tic;
 
 figure(4); clf
 
-clear XYtarg SLMtarg
+
+clear XYtarg SLMtarg meanCamZ
 for i = 1:numel(zsToBlast)
     a = mod(i-1,gridSide);
     b = floor((i-1)/gridSide);
@@ -691,8 +696,9 @@ c.Label.String = 'Estimated Power';
 disp('Compiling Holos To Burn')
 
 blankHolo = zeros(1024, 1024);
-clear tempHololist
+clear holos Diffraction
 for k = 1:numel(zsToBlast)
+    clear tempHololist
     for i=1:size(XYtarg{k},2)
         t=tic;
         fprintf(['Compiling Holo ' num2str(i) ' for depth ' num2str(k)]);
@@ -744,7 +750,7 @@ comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
 comm.send('hSI.hStackManager.enable = 1 ;', 'si');
 
 %comm.send('hSI.hBeams.pzAdjust = 0;', 'si');
-comm.send('hSI.hBeams.powers = 7;', 'si'); %power on SI laser. important no to use too much don't want to bleach
+comm.send('hSI.hBeams.powers = 10;', 'si'); %power on SI laser. important no to use too much don't want to bleach
 
 comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
 comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
@@ -793,19 +799,21 @@ while wait
     end
 end
 
-burnPowerMultiplier = 3;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-burnTime = 0.5; %in seconds, very rough and not precise
+burnPowerMultiplier = 10;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+burnTime = 10; %in seconds, very rough and not precise
 
 disp('Now Burning')
+fprintf('Expected number of images: %d\n', sum(cellfun(@(x) size(x, 3), holos)));
 
+ct = 1;
 for k=1:numel(zsToBlast)%1:numel(zsToBlast)
     
     offset = round(meanCamZ(k));
-    sutter.moveZ(-offset)
+    sutter.moveZ(offset)
     if k==1
-        pause(1)
+        pause(5)
     else
-        pause(0.1);
+        pause(2);
     end
     
     tempHololist=holos{k};
@@ -845,14 +853,14 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
         while ~strcmp(invar,'gotit')
             invar = comm.read(0.01);
         end
-        
+        pause(10)
         comm.send('hSI.startGrab()', 'si');
         % invar = comm.read(0.01);
         % while ~isempty(invar)
         %     invar = comm.read(0.01);
         % end
 
-        pause(1); % force a wait here...
+        pause(5); % force a wait here...
         wait = 1;
         while wait
             comm.send('hSI.acqState', 'si');
@@ -869,10 +877,13 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
             end
         end
 
-
+        disp(ct)
+        ct =ct + 1;
         disp([' Took ' num2str(toc(t)) 's'])
     end
+
 end
+fprintf('Expected number of images: %d\n', sum(cellfun(@(x) size(x, 3), holos)));
 
 sutter.moveToRef();
 

@@ -7,7 +7,7 @@ Setup.verbose =0;
 
 % Setup.useGPU = 0;
 %% choose one
-wavelength = 607
+wavelength = 1100;
 slm = get_slm(wavelength);
 blankHolo = zeros([1024 1024]);
 
@@ -19,13 +19,17 @@ slm.stop();
 slm.wait_for_trigger = 0;
 slm.start();
 %%
-%slmCoords = [.475 .52 -.0 1]; % 0.
-slmCoords = [513/1024 513/1024 0 1]; % 0.
+slmCoords = [.4 .4 -.0 1]; % 0.
+%slmCoords = [513/1024 513/1024 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
 
-slm.feed(blankHolo);
+slm.feed(Holo);
+disp('Press any key to blank...')
+pause
+slm.blank()
+disp('Blanked SLM.')
 % pwr= 3;
 % mssend(masterSocket,[pwr/1000 1 1]); % again, check if this is mW or W
 %  
@@ -46,7 +50,7 @@ slm.feed(blankHolo);
 % top left: 0.1 0.85 
 
 %% make meshgrid (testing 589)
-x = linspace(0.3, .7, 3);
+x = linspace(0.4, .6, 3);
 [x,y]=meshgrid(x,x);
 slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
@@ -54,9 +58,11 @@ slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
 
 slm.feed(Holo);
 
+%bas.preview()
+
 %% test out making bigger spots
 
-slmCoords = [.4 .6 0.0080 1; .6 .6 0.0080 1]; % 0.
+slmCoords = [.85 .9 -.008 1]; % 0.
 %slmCoords = [513/1024 513/1024 0 1];   % zero order
 % slmCoords = [1 1 0 1];
 
@@ -64,18 +70,22 @@ slmCoords = [.4 .6 0.0080 1; .6 .6 0.0080 1]; % 0.
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
 
 slm.feed(Holo);
-
+bas.preview_set_cmax(10)
 %% make meshgrid (test
 % ing 589) of big spots
-x = linspace(0.05, .95, 4);
+x = linspace(0.1, .9, 7);
+%x = linspace(0.3, .7, 5);
 [x,y]=meshgrid(x,x);
-slmCoords = [x(:), y(:), x(:)*0, x(:)*0+1];
-[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords, 0);
+slmCoords = [x(:), y(:), x(:)*0-.015, x(:)*0+1];
+
+%[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords, 0);
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords);
 % 
 % Holo4bit = double(Holo);
 % Holo4bit = uint8(16*(Holo4bit/16));
 
 slm.feed(Holo)
+%bas.preview_set_cmax(25)
 
 %% make big spots, but divert some power to zero order
 
@@ -85,7 +95,7 @@ slmCoords = [.4 .4 0 1]; % 0.
 %slmCoords = [slmCoords; slmZero];
 
 %[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
-[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,10 );
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos_disks_KCZ( Setup,slmCoords,0 );
 
 slm.feed(Holo);
-bas.preview();
+%bas.preview();

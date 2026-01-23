@@ -10,6 +10,8 @@ holoRequest = HRin;
 
 
 patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
+og_dims = size(patterns);
+patterns = patterns(:)';
 % KCZ modified to allow for scale; should do nothing if scale=1
 scale = holoRequest.scale;
 for p = patterns
@@ -93,7 +95,7 @@ end
 
 % here we should calculate any power biases before sending it back
 
-comm.send(arrayfun(@struct, patterns), 'daq');
+comm.send(arrayfun(@struct, reshape(patterns, og_dims)), 'daq'); % reshape patterns to the og format
 disp('Sent patterns back to DAQ');
 
 ct = 1;
@@ -101,17 +103,17 @@ hololist = zeros(Setup.Nx, Setup.Ny, numel(patterns));
 for p = patterns
     % for each pattern, we generate a hologram
     fprintf('compiling hologram %d of %d\n', ct, numel(patterns));
-    slm_coords = function_SItoSLM(p.targets, CoC);
+    slm_coords = function_SItoSLM(p.targets, CoC); % this returns the 4th as an "attenuation", we want to inverse this, as in the original code
 
+    slm_coords(:, 4) = 1./slm_coords(:, 4);
     % poo poo out low DEs?
-    % < slm_coords(:, end)
     % add a zero order for dump
     if p.zero_order_dump && (size(p.targets, 1)  < max_pattern_sz)
         slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias';
         warning('Fixed laser power, dumping into 0 order...')
         slm_coords = cat(1, slm_coords, [0.5, 0.5, 0,  1 - sum(slm_coords(:, 4))]);
     end
-
+    disp(slm_coords)
     if holoRequest.spot_radius > 0
         hololist(:, :, ct) = function_Make_3D_SHOT_Holos_disks_KCZ(Setup, slm_coords, holoRequest.spot_radius);
     else  % old behavior

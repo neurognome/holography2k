@@ -4,7 +4,7 @@ tMov = tic;
 
 %on ScanImage Computer
 % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''K:\Calib\Temp2''';
+destination = '''K:\Calib\Temp''';
 source = '''D:\Calib\Temp\calib*''';
 
 %clear invar
@@ -34,15 +34,21 @@ MovT= toc(tMov);
 comm.send('end', 'si');
 
 tLoad = tic;
-pth = 'K:\Calib\Temp2';
+pth = 'K:\Calib\Temp';
 files = dir(sprintf('%s\\*.tif', pth));
+
+% can we guess the bad one?
+for f = 2:numel(files)
+    timediff(f-1) = files(f).datenum - files(f - 1).datenum;
+end
+%
 
 baseN = eval(baseName);
 
 [dummy fr] = bigread3(fullfile(pth,files(1).name) );
 
 nOpto = numel(zsToBlast);
-nBurnHoles = size(XYtarg{1},2);
+nBurnHoles = size(XYtarg{1}, 2);
 
 baseFr = mean(fr(:,:,1:nOpto:end),3);%mean(fr(:,:,1:nOpto:end),3);%Probably more accurate to just do correct zoom, but sometimes having difficulty
 
@@ -50,10 +56,10 @@ k=1;c=0; SIXYZ =[]; Frames=[];
 for i=2:numel(files) % start at 2 because the first frame is the "background"
     t = tic;
     fprintf(['Loading/Processing Frame ' files(i).name]);
-    try
+    % try
         [dummy fr] = bigread3(fullfile(pth,files(i).name) );
         % REMOVE THIS
-        % fr = dummy;
+      %   fr = dummy;
         %
         if c>=nBurnHoles
             k=k+1;
@@ -69,21 +75,21 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             baseFrame = Frames{k}(:,:,c-1);
             
             %try to exclude those very bright spots
-            maskFR = imgaussfilt(Frame,3) - imgaussfilt(Frame,16);
-            mask = maskFR > mean(maskFR(:))+6*std(maskFR(:));
+            % maskFR = imgaussfilt(Frame,3) - imgaussfilt(Frame,16);
+            % mask = maskFR > mean(maskFR(:))+3*std(maskFR(:));
             % mask = maskFR < mean(maskFR(:))+6*std(maskFR(:));
             
             %remove the low frequency slide illumination differences
-            filtNum = 3;
+            filtNum = 2;
             frameFilt = imgaussfilt(Frame,filtNum);
             baseFilt = imgaussfilt(baseFrame,filtNum);
             
             
             % toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
-            toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
+        %    toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
             toCalc = baseFilt - frameFilt;
-            % toCalc = -toCalc; % remove this later?
-            toCalc(mask)=0;
+           % toCalc = -toCalc; % remove this later?
+            % toCalc(mask)=0;
             
             %             testFr = Frames{k}(:,:,c-1) - Frame;
             [ x,y ] =function_findcenter(toCalc);
@@ -105,11 +111,11 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             x = 0;
             y=0;
         end
-    catch
-        fprintf('\nError in Hole analysis... probably loading.')
-        x = 0;
-        y=0;
-    end
+    % catch
+    %     fprintf('\nError in Hole analysis... probably loading.')
+    %     x = 0;
+    %     y=0;
+    % end
     
     
     SIXYZ(:,end+1) = [x,y,zsToBlast(k)];
@@ -134,6 +140,7 @@ SIXYZ = SIXYZbackup;
 
 cam3XYZ=cam3XYZ(:,1:size(SIXYZ,2));
 
+
 figure(666)
 clf
 % scatter3(cam3XYZ(1,:), cam3XYZ(2,:), cam3XYZ(3,:), [], '*')
@@ -147,7 +154,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)'; % detected points from the hole burn
 refGet = (cam3XYZ(1:3,:))'; % expected points?
-errScalar = 2;%2.5
+errScalar = 3;%2.5
 
 figure(2594)
 clf
@@ -186,7 +193,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 1.3;
+errScalar = 2.5;
 
 figure(2616)
 clf
@@ -211,7 +218,7 @@ numTest = 10000;
 
 rangeX = [0 511];%[0 511];
 rangeY = [0 511];%[0 511];
-rangeZ = [0 55];% Make Sure to match this to the correct range for this optotune;
+rangeZ = [0 90];% Make Sure to match this to the correct range for this optotune;
 
 clear test;
 valX = round((rangeX(2)-rangeX(1)).*rand(numTest,1)+rangeX(1));

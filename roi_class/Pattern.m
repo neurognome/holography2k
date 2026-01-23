@@ -54,7 +54,7 @@ classdef Pattern < matlab.mixin.Copyable
             energy = 1./attenuation_coeffs;
             energy = energy.*obj.powerbias;
             energy = energy/sum(energy);
-            obj.diffraction_efficiency = sum(energy.*attenuation_coeffs);
+            obj.diffraction_efficiency = min(sum(energy.*attenuation_coeffs), 1);
         end
     end
 

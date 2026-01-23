@@ -104,6 +104,7 @@ for i=1:planes
     pt = tic;
     holos_this_plane = numel(slmMultiCoordsIndiv{i});
     
+    mtholo_temp=[];
     for k=1:holos_this_plane
         ht = tic;
         [ mtholo, Reconstruction, Masksg ] = function_Make_3D_SHOT_Holos(Setup,slmMultiCoordsIndiv{i}{k}');
