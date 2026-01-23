@@ -38,7 +38,14 @@ classdef StimInfo < matlab.mixin.Copyable
 
         function out = to_struct(obj)
             out = copy(obj);
-            out.sequence.patterns = struct(out.sequence.patterns);
+            for ii = 1:length(out.sequence.patterns)
+                if ii == 1
+                    patterns = struct(out.sequence.patterns(ii));
+                else
+                    patterns(ii) = struct(out.sequence.patterns(ii));
+                end
+            end
+            out.sequence.patterns = patterns;
             out.sequence = struct(out.sequence);
             out = struct(out);
         end

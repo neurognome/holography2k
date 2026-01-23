@@ -9,11 +9,11 @@ power_calibrations;
 %initalize contact
 laser_900 = LaserPowerControl(Output(DAQOutput(dq, 'port0/line5'), 'Shutter 900'),...
     ELL14(SerialInterface(sp), 1, 'Power 900'),...
-     power_calibration.calibration_900, 10); % update these calibration paths as you get them...
+     power_calibration.calibration_900, 250); % update these calibration paths as you get them...
 
 laser_1100 = LaserPowerControl(Output(DAQOutput(dq, 'port0/line4'), 'Shutter 1100'),...
     ELL14(SerialInterface(sp), 2, 'Power 1100'),...
-    power_calibration.calibration_1100, 10);
+    power_calibration.calibration_1100, 250);
 
 %calib_607 = 'C:\Users\holos\Documents\power-calibrations\240927_1030nm_100kHz_35AOM_uni_gate_calibration(607nm_first_order_suboptimal_dichroic).mat';
 calib_607 = 'C:\Users\holos\Documents\power-calibrations\241028_607nm_50kHz_35AOM_uni_gate_calibration.mat';
@@ -62,10 +62,18 @@ while go;
             end
         else
             if calibration_wavelength == 1030
-                dq.write([0, min(pwr.pwr_fun(PowerRequest), pwr.max_pwr)]);
+                pwr_request = pwr.pwr_fun(PowerRequest);
+                if ~isnan(pwr_request)
+                    dq.write([0, min(pwr.pwr_fun(PowerRequest), 0.5)]);%pwr.max_pwr)]);
+                else
+                    dq.write([0, 0])
+                    PowerRequest=0;
+                    warning('BAD BAD BAD BAD: NO POWER GIVEN (probably requested too little power (or maybe too much))')
+                end
             else
                 dq.write(1);
                 setpwr = min([(PowerRequest), pwr.max_pwr]);
+                disp(setpwr)
                 pwr.control.set(pwr.pwr_fun(setpwr));
             end
         end

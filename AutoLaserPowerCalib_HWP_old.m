@@ -3,13 +3,13 @@
 addpath(genpath('C:\Users\holos\Documents\GitHub'))
 addpath(genpath('C:\Users\holos\Documents\_code'))
 
-clear   
+clear
 clc
 close all;
 
 % fill this in
 wavelength = 900; % 900, 1100, 1030
-used_khz = 750;
+used_khz = 50;
 aom = 0.75;
 gate = 'none';%'uni'; % or none or normal?
 
@@ -18,16 +18,15 @@ save_base = 'C:\Users\holos\Documents\power-calibrations\';
 %% start visa thing (older matlabs)
 % note: use instrhwinfo to find the correct dev
 addpath(genpath('C:\Users\holos\Documents\GitHub\holodaq'));
-addpath(genpath('C:\Users\holos\Documents\ThorlabsPowerMeter'));
 
-meter_list = ThorlabsPowerMeter;
-tpm = meter_list.connect(meter_list.listdevices, 1);
+instrreset()
+vinfo = instrhwinfo('visa','ni');
+v = eval(vinfo.ObjectConstructorName{1});
+fopen(v);
 
-
-tpm.setWaveLength(wavelength);
-tpm.setAverageTime(0.1);
 %% Params
-interStepPause = 2; % seconds (0.5 for the fast head)
+nsamplesPM = 1000; % counts (at 1000 Hz I think), produces an average
+interStepPause = 0.5; % seconds (0.5 for the fast head)
 
 %% initialize the thing
 
@@ -73,9 +72,11 @@ dq.write(1);
 for ii = 1:numel(initial_search_queries)
     hwp.set(initial_search_queries(ii)); % move to deg
     pause(interStepPause);
-    tpm.updateReading(0.01);
-    val = tpm.meterPowerReading * 1000;
 
+    fprintf(v, ['sense:average:count ', num2str(nsamplesPM)]);
+    set(v, 'timeout', 3+1.1*nsamplesPM*3/1000)
+    ret = query(v, 'read?');
+    val = str2double(ret)*1000;
     if val < 0
         val = 0;
     end

@@ -9,7 +9,7 @@ close all;
 
 % fill this in
 wavelength = 1030; % 900, 1100, 1030
-used_khz = 1250;
+used_khz = 5000;
 gate = 'uni';%'uni'; % or none or normal?
 
 save_base = 'C:\Users\holos\Documents\power-calibrations\';
@@ -17,15 +17,17 @@ save_base = 'C:\Users\holos\Documents\power-calibrations\';
 %% start visa thing (older matlabs)
 % note: use instrhwinfo to find the correct dev
 addpath(genpath('C:\Users\holos\Documents\GitHub\holodaq'));
+addpath(genpath('C:\Users\holos\Documents\ThorlabsPowerMeter'));
 
-instrreset()
-vinfo = instrhwinfo('visa','ni');
-v = eval(vinfo.ObjectConstructorName{1});
-fopen(v);
+meter_list = ThorlabsPowerMeter;
+tpm = meter_list.connect(meter_list.listdevices, 1);
+
+
+tpm.setWaveLength(wavelength);
+tpm.setAverageTime(0.1);
 
 %% Params
-nsamplesPM = 1000; % counts (at 1000 Hz I think), produces an average
-interStepPause = 5; % seconds (0.5 for the fast head)
+interStepPause = 1; % seconds (0.5 for the fast head)
 
 %% initialize the thing
 
@@ -47,7 +49,7 @@ disp('Devices connected.')
 %% 
 dq.write([0, 0]); % close shutter
 
-disp('Set the laser rep rate to 100kHz')
+disp('Set the laser rep rate to 25kHz')
 disp('Running a full calibration across the whole range')
 input('Press enter when ready: ')
 %% initial search for low and high points
@@ -58,27 +60,20 @@ initial_search_values = zeros(size(initial_search_queries));
 % start
 for ii = 1:numel(initial_search_queries)
     dq.write([1, initial_search_queries(ii)]);
-    pause(interStepPause);
 
-    fprintf(v, ['sense:average:count ', num2str(nsamplesPM)]);
-    set(v, 'timeout', 3+1.1*nsamplesPM*3/1000)
-    ret = query(v, 'read?');
-    val = str2double(ret)*1000;
-    if val < 0
-        val = 0;
-    end
-    initial_search_values(ii) = val;
+    tpm.updateReading(interStepPause);
+    initial_search_values(ii) = tpm.meterPowerReading * 1000;
     dq.write([0, 0]);
     disp(['Deg: ' num2str(initial_search_queries(ii)) ' Power (mW):  ' num2str(val)])
 end
 dq.write([0, 0]);
 % first, we need to determine what is "safe", the limit of our laser head
 % is 500mW, so let's keep it below that..
-max_power = 0.5;
-end_idx = find(initial_search_values * (1250/100) < max_power*1000, 1, 'last');
+max_power = 0.3;
+end_idx = find(initial_search_values * (used_khz/25) < max_power*1000, 1, 'last');
 
 %%
-disp('Set the laser to 1250kHz')
+disp(['Set the laser to ', num2str(used_khz), ' kHz'])
 disp('Now we will collect the full power curve');
 input('Press enter to continue: ')
 
@@ -87,16 +82,16 @@ for ii = 1:numel(initial_search_queries(1:end_idx))
     dq.write([1, initial_search_queries(ii)]);
     pause(interStepPause);
 
-    fprintf(v, ['sense:average:count ', num2str(nsamplesPM)]);
-    set(v, 'timeout', 3+1.1*nsamplesPM*3/1000)
-    ret = query(v, 'read?');
-    val = str2double(ret)*1000;
+    tpm.updateReading(interStepPause);
+    initial_search_values(ii) = tpm.meterPowerReading * 1000;
+
     if val < 0
         val = 0;
     end
+
     full_power_values(ii) = val;
     dq.write([0, 0]);
-    disp(['Deg: ' num2str(full_power_queries(ii)) ' Power (mW):  ' num2str(val)])
+    disp(['Deg: ' num2str(initial_search_queries(ii)) ' Power (mW):  ' num2str(val)])
 end
 dq.write([0, 0]);
 
@@ -119,7 +114,7 @@ for ii = 1:numel(fine_power_queries)
     end
     fine_power_values(ii) = val;
     dq.write([0, 0]);
-    disp(['Deg: ' num2str(full_power_queries(ii)) ' Power (mW):  ' num2str(val)])
+    disp(['Deg: ' num2str(fine_power_queries(ii)) ' Power (mW):  ' num2str(val)])
 end
 dq.write([0, 0]);
 

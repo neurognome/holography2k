@@ -20,6 +20,17 @@ classdef Sequence < handle
             out = [obj.patterns.id];
         end
 
+        function out = calculate_power(obj, power_per_cell) 
+            %this will fail later, but for now will work, (when different
+            %sizes...)
+            sz = zeros(numel(obj.patterns), 1);
+            for p = obj.patterns
+                sz = size(p.targets, 1);
+            end
+
+            out = (power_per_cell * max(sz))/obj.average_de;
+        end
+
         function out = average_de(obj)
             % right now we can't really "flip" fast enough to change power
             % that carefully... so let's just choose an average lol
