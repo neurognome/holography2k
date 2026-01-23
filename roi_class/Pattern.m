@@ -16,7 +16,7 @@ classdef Pattern < matlab.mixin.Copyable
             end
 
             if nargin < 3 || isempty(zero_order_dump)
-                warning('Dumping power into zero order!!')
+                warning('NOT Dumping power into zero order!!')
                 zero_order_dump = false;
             end
             obj.zero_order_dump = zero_order_dump;
