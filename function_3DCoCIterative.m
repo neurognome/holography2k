@@ -10,7 +10,7 @@ nIter = 500;
 totN = size(refAsk,1);
 trialN = 1:totN;
 
-slowway = 1;
+slowway = 0;
 %  errScalar =2.5;
 
 go=1; c=0;

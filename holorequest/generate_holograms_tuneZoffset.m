@@ -92,13 +92,24 @@ else  %if I'm doing a custom sequence
     SICoordinates = holoRequest.targets;
 
     % KCZ modified to allow for scale; should do nothing if scale=1
-    scale = holoRequest.scale;
+    % scale = holoRequest.scale;
+    scale = 1.06; % 1.07 modified with the new opa system.
+    scale1 = 1.05; % 0.65
+    rotTheta = 0.2;
+    rotT = [cos(rotTheta),sin(rotTheta); -sin(rotTheta),cos(rotTheta)];
     if scale ~= 1
         % center to 0,0, scale, then decenter
-        scale_center = [.5, .5];
-        SICoordinates(:,1)=scale*(SICoordinates(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
-        SICoordinates(:,2)=scale*(SICoordinates(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2); 
+        % scale_center = [.5, .5]; % 
+        % SICoordinates(:,1)= scale1*(SICoordinates(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
+        % SICoordinates(:,2)= scale*(SICoordinates(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2); 
 
+        scale_center = [256, 256]; % [.5, .5]
+        temp1 = scale1*(SICoordinates(:,1)-scale_center(1));
+        temp2 = scale*(SICoordinates(:,2)-scale_center(2));
+        tempXY = (rotT*[temp1.';temp2.']).';
+        SICoordinates(:,1)= tempXY(:,1)+holoRequest.xoffset+scale_center(:,1);
+        SICoordinates(:,2)= tempXY(:,2)+holoRequest.yoffset+scale_center(:,2); 
+        
     else  % old behavior
         SICoordinates(:,1)=SICoordinates(:,1)+holoRequest.xoffset;
         SICoordinates(:,2)=SICoordinates(:,2)+holoRequest.yoffset;   
@@ -116,7 +127,7 @@ else
     disp('NO weights detected using flat weight')
 end
 
-[AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
+[AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse, CoC);
 
 % control.io.send(DE_list)
 comm.send(DE_list, 'daq');

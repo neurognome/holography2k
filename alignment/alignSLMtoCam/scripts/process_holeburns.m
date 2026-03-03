@@ -34,7 +34,7 @@ MovT= toc(tMov);
 comm.send('end', 'si');
 
 tLoad = tic;
-pth = 'K:\Calib\Temp';
+pth = 'K:\Calib\Temp_8_0.25';
 files = dir(sprintf('%s\\*.tif', pth));
 
 % can we guess the bad one?
@@ -85,15 +85,13 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             baseFilt = imgaussfilt(baseFrame,filtNum);
             
             
-            % toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
-        %    toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
+            %toCalc = (Frame-frameFilt) - (baseFrame-baseFilt);
+            %toCalc = (frameFilt-Frame) - (baseFilt-baseFrame);
             toCalc = baseFilt - frameFilt;
-           % toCalc = -toCalc; % remove this later?
-            % toCalc(mask)=0;
+             %toCalc(mask)=0;
             
             %             testFr = Frames{k}(:,:,c-1) - Frame;
             [ x,y ] =function_findcenter(toCalc);
-            
             figure(333)
             clf
             subplot(1,3,1)
@@ -106,6 +104,8 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
             imagesc(toCalc)
             hold on
             scatter(y,x,[],'r')
+                        %[x, y] = ginputwhite;
+
             %             pause
         else
             x = 0;
@@ -154,7 +154,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)'; % detected points from the hole burn
 refGet = (cam3XYZ(1:3,:))'; % expected points?
-errScalar = 3;%2.5
+errScalar =1.3;%2.5
 
 figure(2594)
 clf
@@ -193,7 +193,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 2.5;
+errScalar = 1.5;
 
 figure(2616)
 clf

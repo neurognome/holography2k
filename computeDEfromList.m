@@ -1,7 +1,7 @@
-function [AttenuationCoeffs, DElist] = computeDEfromList(SICoordinates,ROIs,weights)
+function [AttenuationCoeffs, DElist] = computeDEfromList(SICoordinates,ROIs,weights, CoC)
 
 %load current CoC
-load('C:\Users\holos\Documents\calibs\ActiveCalib.mat','CoC');
+%load('C:\Users\holos\Documents\calibs\ActiveCalib.mat','CoC');
 
 %catch targets that are below minimal diffraction efficiency 
 DEfloor = 0.05;

@@ -11,7 +11,7 @@ Setup.verbose =0;
 
 
 tBegin = tic;
-wavelength = 900;
+wavelength = 1100;
 disp('Setting up stuff...');
 
 makePaths()

@@ -36,9 +36,9 @@ for w = wavelength
         case 607
             c = importdata('C:\Users\holos\Documents\calibs\12-Nov-2024_Calib_607.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_900.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\20-Feb-2026_Calib_900_Nikon16x.mat');
         case 1100
-            c = importdata ('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_1100.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\23-Feb-2026_Calib_1100_Nikon16x.mat');
         case 1030
             c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030.mat');
             % idk why it's doing this... but whatever

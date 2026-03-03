@@ -148,7 +148,7 @@ refGet = (basXYZ(1:3,1:end-holdback))';
 
 %  SLMtoCam = function_3DCoC(refAsk,refGet,modelterms);
 
-errScalar = 2.5; %2.8;%2.5;
+errScalar =2.5 %2.8;%2.5;
 figure(1286);
 clf
 ax = gca();

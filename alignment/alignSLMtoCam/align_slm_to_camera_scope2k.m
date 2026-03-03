@@ -60,12 +60,12 @@ disp('Ready')
 bas.preview()
 % bas.preview_set_cmax(80)
 
-%% Make mSocketConnections with DAQ and SI Computers
+    %% Make mSocketConnections with DAQ and SI Computers
 comm = HolochatInterface('holo');
 comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 50; %in mW %0.25 normally
+pwr = 4; %in mW 0.3 for 900, 8 for 1100
 disp(['idividual hologra' ...
     'm; power set to ' num2str(pwr) 'mW']);
 
@@ -73,7 +73,7 @@ disp(['idividual hologra' ...
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [0.7 0.7 0.0 1]; % 0.
+slmCoords = [0.4 0.4 0.05 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -127,16 +127,16 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-slmXrange = [0.18 0.9];%1030 or 1100
-slmYrange = [0.0 0.9];%1030
-% slmXrange = [0.15 0.85];%607 or 9001
-% slmYrange = [0.15 0.85];%607
-% slmXrange = [0.1 0.9];%607
-% slmYrange = [0.1 0.9];%607
+%slmXrange = [0.05 0.9];%900
+%slmYrange = [0.1, 0.95];%900
+slmXrange = [0.10 0.95];% or 1100
+slmYrange = [0.05 0.95];% 1100
+
 
 
 % set Z range
-slmZrange = [-0.05 0.08];%1030
+%slmZrange = [-0.06, 0.05]; % 900
+slmZrange = [-0.01 0.08];%1100
 %slmZrange = [-0.10 0.03];%607
 
 if ~reloadHolos
@@ -593,7 +593,7 @@ for i = 1:planes
 end
 
 fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
-
+%%
 process_holograms
 
 %% 
@@ -750,7 +750,7 @@ comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
 comm.send('hSI.hStackManager.enable = 1 ;', 'si');
 
 %comm.send('hSI.hBeams.pzAdjust = 0;', 'si');
-comm.send('hSI.hBeams.powers = 10;', 'si'); %power on SI laser. important no to use too much don't want to bleach
+comm.send('hSI.hBeams.powers = 4;', 'si'); %power on SI laser. important no to use too much don't want to bleach
 
 comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
 comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
@@ -773,7 +773,7 @@ while ~strcmp(num2str(invar),'37')
 end
 disp('completed parameter set')
 
-%%Burn
+%% Burn
 
 %AcquireBaseline
 disp('Acquire Baseline')
@@ -798,9 +798,10 @@ while wait
         %             disp(invar)
     end
 end
-
-burnPowerMultiplier = 10;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-burnTime = 10; %in seconds, very rough and not precise
+%%
+% closest so far is 8, 1.5, still caused big burns though..
+burnPowerMultiplier = 8;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+baseBurnTime = 0.25; %in seconds, very rough and not precise
 
 disp('Now Burning')
 fprintf('Expected number of images: %d\n', sum(cellfun(@(x) size(x, 3), holos)));
@@ -820,21 +821,25 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
     
     for i=1:size(XYtarg{k},2)%1:size(XYuse,2)
         t=tic;
-        fprintf(['Blasting Hole ' num2str(i) '. Depth ' num2str(zsToBlast(k))]);
+        fprintf(['Blasting Hole ' num2str(i) '. Depth ' num2str(zsToBlast(k)) '\n']);
         slm.feed(tempHololist(:, :, i));
         
         DE = Diffraction{k}(i);
         if DE<.05 %if Diffraction efficiency too low just don't even burn %Ian 9/20/19
             DE=inf;
         end
-        blastPower = pwr*burnPowerMultiplier /1000 /DE;
+        blastPower = pwr*burnPowerMultiplier /1000 /DE^1.25;
         
         if blastPower>2 %cap for errors, now using a high divided mode so might be high
             blastPower =2;
         end
 
         % blastPower = min(blastPower, 0.024); %  limit 0.024 for the 607
-        
+        burnTime = min(baseBurnTime / DE^2, 3);
+        if burnTime > 0.5
+            burnTime=3*burnTime;
+        end
+        fprintf('Burning for: %0.02fs\n', burnTime)
         stimT=tic;
         comm.send([blastPower 1 1], 'daq');
         while toc(stimT)<burnTime
@@ -853,14 +858,14 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
         while ~strcmp(invar,'gotit')
             invar = comm.read(0.01);
         end
-        pause(10)
+        pause(2)
         comm.send('hSI.startGrab()', 'si');
         % invar = comm.read(0.01);
         % while ~isempty(invar)
         %     invar = comm.read(0.01);
         % end
 
-        pause(5); % force a wait here...
+        pause(2); % force a wait here...
         wait = 1;
         while wait
             comm.send('hSI.acqState', 'si');

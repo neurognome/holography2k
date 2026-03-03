@@ -19,7 +19,7 @@ slm.stop();
 slm.wait_for_trigger = 0;
 slm.start();
 %%
-slmCoords = [.4 .4 -.0 1]; % 0.
+slmCoords = [0.4 0.4 0.02 1]; % 0.
 %slmCoords = [513/1024 513/1024 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
@@ -27,7 +27,9 @@ slmCoords = [.4 .4 -.0 1]; % 0.
 
 slm.feed(Holo);
 disp('Press any key to blank...')
-pause
+
+bas.preview()
+%pause
 slm.blank()
 disp('Blanked SLM.')
 % pwr= 3;
@@ -48,6 +50,34 @@ disp('Blanked SLM.')
 % bottom right: 0.85, 0.1
 % bottom left: 0.85. 0.85
 % top left: 0.1 0.85 
+
+
+%% 
+[Setup ] = function_loadparameters2();
+Setup.CGHMethod=2;
+Setup.GSoffset=0;
+Setup.verbose =0;
+
+% Setup.useGPU = 0;
+%% choose one
+wavelength = 1100;
+slm = get_slm(wavelength);
+blankHolo = zeros([1024 1024]);
+
+%1030
+
+
+%%
+slm.stop();
+slm.wait_for_trigger = 0;
+slm.start();
+%%
+slmCoords = [.4 .4 -.0 1]; % 0.
+%slmCoords = [513/1024 513/1024 0 1]; % 0.
+
+[Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
+
+
 
 %% make meshgrid (testing 589)
 x = linspace(0.4, .6, 3);

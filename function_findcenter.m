@@ -1,5 +1,5 @@
 function [ x,y ] =function_findcenter( h )
-h = imgaussfilt(h, 2);
+h = imgaussfilt(h, 1);
 [~,y] = max(max(h));
 [~,x] =max(h(:,y));
 

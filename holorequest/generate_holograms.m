@@ -71,7 +71,7 @@ else
     disp('NO weights detected using flat weight')
 end
 
-[AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse);
+[AC, DE_list] = computeDEfromList(SICoordinates, holoRequest.rois, weightsToUse, CoC);
 
 % control.io.send(DE_list)
 comm.send(DE_list, 'daq');

@@ -4,7 +4,7 @@ clear
 close all
 clc
 %%
-wavelength = 1100;
+wavelength = 900;
 tBegin = tic;
 
 disp('Setting up stuff...');

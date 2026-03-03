@@ -1,7 +1,7 @@
-clear; clc
-wavelength = [1100, 900];%[1030, 607]; %[900];% 607;%[1100, 900]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+%clear; clc
+wavelength = 1030;%[1030];%[1030, 607]; %[900];% 607;%[1100, 900]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
-test_z = false;
+test_z = true;
 comm = HolochatInterface('holo');
 
 timeout = 1700;
@@ -35,9 +35,9 @@ for w = wavelength
         case 607
             c = importdata('C:\Users\holos\Documents\calibs\21-Oct-2024_Calib_607.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_900.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\20-Feb-2026_Calib_900_Nikon16x.mat');
         case 1100
-            c = importdata ('C:\Users\holos\Documents\calibs\22-Jan-2025_Calib_1100.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\23-Feb-2026_Calib_1100_Nikon16x.mat');
         case 1030
             c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030_DE_calib.mat');
             % idk why it's doing this... but whatever
@@ -57,8 +57,18 @@ for w = 1:numel(wavelength)
     %%%%%%%%%% test z-offset: start %%%%%%%%%%%%   
 
     if test_z
+        clear myloc;
+        myloc = [ 171   252     0]; 
+        if exist("myloc",'var')
+            myOptionsIn = cell(1,2);
+            myOptionsIn{1} = 'loc';
+            myOptionsIn{2} = myloc;
+        else
+            myOptionsIn = {};
+        end
         [hololist,locs] = generate_holograms_tuneZoffset(comm, Setup, calib(w),...
-            'z offset',5,'xy offset',[-35.4-2.8+3.1,32-1.9-5.4,0]); % 'loc',[265,270,0],   test on Feb 28, 2025
+            'z offset',-165,'xy offset',[15-5,-41-20,0],myOptionsIn{:}); % 'loc',[265,270,0],   ,'loc',myloc  test on Feb 28, 2025
+    % -165
     else
         hololist = generate_holograms(comm, Setup, calib(w));
 
