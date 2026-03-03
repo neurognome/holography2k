@@ -65,7 +65,7 @@ comm = HolochatInterface('holo');
 comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 4; %in mW 0.3 for 900, 8 for 1100
+pwr = 2.5; %in mW 0.3 for 900, 8 for 1100
 disp(['idividual hologra' ...
     'm; power set to ' num2str(pwr) 'mW']);
 
@@ -800,8 +800,8 @@ while wait
 end
 %%
 % closest so far is 8, 1.5, still caused big burns though..
-burnPowerMultiplier = 8;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-baseBurnTime = 0.25; %in seconds, very rough and not precise
+burnPowerMultiplier = 10;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+baseBurnTime = 0.3; %in seconds, very rough and not precise
 
 disp('Now Burning')
 fprintf('Expected number of images: %d\n', sum(cellfun(@(x) size(x, 3), holos)));
