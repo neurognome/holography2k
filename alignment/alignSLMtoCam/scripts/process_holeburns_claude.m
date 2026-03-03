@@ -173,36 +173,84 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         % Record this detection to exclude from future frames
         expectedXY_history(end+1, :) = [x, y]; %#ok<AGROW>
 
-        % ------------------------------------------------------------------
-        % Diagnostic figure
-        % ------------------------------------------------------------------
-        figure(333)
-        clf
-        subplot(1,4,1)
-        imagesc(Frame);  title('Raw frame'); axis image off; colorbar
+    % ------------------------------------------------------------------
+% Diagnostic figure
+%
+% All panels cropped to the search window. DoG clim derived from
+% the crop only — prevents out-of-window pixels from collapsing
+% the colour scale. Panels 3 and 4 share the same clim.
+% ------------------------------------------------------------------
+pad  = SEARCH_RADIUS + 10;
+rLo  = max(1,     round(expX) - pad);
+rHi  = min(nRows, round(expX) + pad);
+cLo  = max(1,     round(expY) - pad);
+cHi  = min(nCols, round(expY) + pad);
 
-        subplot(1,4,2)
-        imagesc(toCalc_raw); title('BG-sub diff'); axis image off; colorbar
+% Crop images to the search window
+frameCrop   = Frame(rLo:rHi, cLo:cHi);
+rawDiffCrop = toCalc_raw(rLo:rHi, cLo:cHi);
+dogCrop     = dog_frame(rLo:rHi, cLo:cHi);
+maskCrop    = combinedMask(rLo:rHi, cLo:cHi);
 
-        subplot(1,4,3)
-        imagesc(dog_frame);  title('DoG enhanced'); axis image off; colorbar
-        hold on
-        % Show search region boundary
-        theta = linspace(0, 2*pi, 200);
-        plot(expY + SEARCH_RADIUS*cos(theta), expX + SEARCH_RADIUS*sin(theta), ...
-             'y--', 'LineWidth', 1.2)
-        scatter(y, x, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
-        scatter(expY, expX, 80, 'y', '+', 'LineWidth', 2)
+% Shared colour limits from the crop (avoids scale blowout)
+dogLim = [min(dogCrop(:)), max(dogCrop(:))];
+if dogLim(1) >= dogLim(2); dogLim(2) = dogLim(1) + eps; end
 
-        subplot(1,4,4)
-        % Show masked DoG so the operator can see what the algorithm used
-        dispIm = masked_dog;
-        dispIm(isnan(dispIm)) = min(dog_frame(:));
-        imagesc(dispIm); title(sprintf('Masked (z=%.1f)', zScore)); 
-        axis image off; colorbar
-        hold on
-        scatter(y, x, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
-        drawnow
+% Detection/expected coords in cropped-image space
+xCrop   = x    - rLo + 1;
+yCrop   = y    - cLo + 1;
+exXcrop = expX - rLo + 1;
+exYcrop = expY - cLo + 1;
+
+% Search-circle in cropped space
+theta = linspace(0, 2*pi, 200);
+circC = exYcrop + SEARCH_RADIUS*cos(theta);   % col = horizontal axis
+circR = exXcrop + SEARCH_RADIUS*sin(theta);   % row = vertical axis
+
+figure(333)
+clf
+set(gcf, 'Position', [50 50 1300 340])
+
+% Panel 1: full raw frame — overview with detection marked
+subplot(1,4,1)
+imagesc(Frame);
+axis image off; colorbar
+title('Full frame')
+hold on
+scatter(y, x, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
+scatter(expY, expX, 60, 'y', 'x', 'LineWidth', 2)
+
+% Panel 2: cropped BG-sub difference
+subplot(1,4,2)
+imagesc(rawDiffCrop);
+axis image off; colorbar
+title('BG-sub diff (crop)')
+hold on
+plot(circC, circR, 'y--', 'LineWidth', 1.2)
+scatter(yCrop, xCrop, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
+scatter(exYcrop, exXcrop, 60, 'y', 'x', 'LineWidth', 2)
+
+% Panel 3: cropped DoG with search circle and detected point
+subplot(1,4,3)
+imagesc(dogCrop, dogLim);
+axis image off; colorbar
+title('DoG enhanced (crop)')
+hold on
+plot(circC, circR, 'y--', 'LineWidth', 1.2)
+scatter(yCrop, xCrop, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
+scatter(exYcrop, exXcrop, 60, 'y', 'x', 'LineWidth', 2)
+
+% Panel 4: same crop, outside-mask pixels pushed to colour floor
+subplot(1,4,4)
+dispIm = dogCrop;
+dispIm(~maskCrop) = dogLim(1);   % floor, not below it
+imagesc(dispIm, dogLim);
+axis image off; colorbar
+title(sprintf('Search mask (z=%.1f)', zScore))
+hold on
+scatter(yCrop, xCrop, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
+
+drawnow
 
     else
         % First frame in a group: use expected position directly
