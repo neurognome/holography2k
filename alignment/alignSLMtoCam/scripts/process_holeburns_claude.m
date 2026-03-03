@@ -33,7 +33,7 @@ MovT= toc(tMov);
 comm.send('end', 'si');
 
 tLoad = tic;
-pth = 'K:\Calib\Temp_8_0.25';
+pth = 'K:\Calib\Temp_1st_try';
 files = dir(sprintf('%s\\*.tif', pth));
 
 % can we guess the bad one?
@@ -244,7 +244,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (cam3XYZ(1:3,:))';
-errScalar =1.3;
+errScalar =2;
 
 figure(2594)
 clf
@@ -277,7 +277,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 1.5;
+errScalar = 5;
 
 figure(2616)
 clf

@@ -65,7 +65,7 @@ comm = HolochatInterface('holo');
 comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 4; %in mW 0.3 for 900, 8 for 1100
+pwr = 2.75; %in mW 0.3 for 900, 8 for 1100
 disp(['idividual hologra' ...
     'm; power set to ' num2str(pwr) 'mW']);
 
@@ -750,7 +750,7 @@ comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
 comm.send('hSI.hStackManager.enable = 1 ;', 'si');
 
 %comm.send('hSI.hBeams.pzAdjust = 0;', 'si');
-comm.send('hSI.hBeams.powers = 4;', 'si'); %power on SI laser. important no to use too much don't want to bleach
+comm.send('hSI.hBeams.powers = 10;', 'si'); %power on SI laser. important no to use too much don't want to bleach
 
 comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
 comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
@@ -801,7 +801,7 @@ end
 %%
 % closest so far is 8, 1.5, still caused big burns though..
 burnPowerMultiplier = 8;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
-baseBurnTime = 0.25; %in seconds, very rough and not precise
+baseBurnTime = 0.3; %in seconds, very rough and not precise
 
 disp('Now Burning')
 fprintf('Expected number of images: %d\n', sum(cellfun(@(x) size(x, 3), holos)));
