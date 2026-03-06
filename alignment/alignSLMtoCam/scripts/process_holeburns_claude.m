@@ -114,7 +114,7 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         [nRows, nCols] = size(dog_frame);
 
         % Build a spatial mask centred on the expected position
-        [CC, RR] = meshgrid(1:nCols, 1:nRows);
+        [CC, RR] = meshgrid(1:nCols, 1:nRows); % check this, is this correct or does this need to be swapped?
         searchMask = sqrt((CC - expY).^2 + (RR - expX).^2) <= SEARCH_RADIUS;
 
         % Also exclude a small exclusion zone around every PREVIOUSLY
@@ -178,13 +178,13 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         % ------------------------------------------------------------------
         figure(333)
         clf
-        subplot(1,4,1)
+        subplot(2,2,1)
         imagesc(Frame);  title('Raw frame'); axis image off; colorbar
 
-        subplot(1,4,2)
+        subplot(2,2,2)
         imagesc(toCalc_raw); title('BG-sub diff'); axis image off; colorbar
 
-        subplot(1,4,3)
+        subplot(2,2,3)
         imagesc(dog_frame);  title('DoG enhanced'); axis image off; colorbar
         hold on
         % Show search region boundary
@@ -194,7 +194,7 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         scatter(y, x, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
         scatter(expY, expX, 80, 'y', '+', 'LineWidth', 2)
 
-        subplot(1,4,4)
+        subplot(2,2,4)
         % Show masked DoG so the operator can see what the algorithm used
         dispIm = masked_dog;
         dispIm(isnan(dispIm)) = min(dog_frame(:));
