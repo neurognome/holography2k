@@ -55,6 +55,7 @@ function start_holo_listener(varargin)
 
     last_seq = -inf;
     preread  = [];
+    last_abort_seq = local_current_abort(comm);   % ignore any stale abort at startup
     fprintf('Holo listener up; waiting for a prime from the DAQ...\n');
     while true
         prime = comm.get_config();
@@ -105,8 +106,25 @@ function start_holo_listener(varargin)
             continue
         end
 
-        % 4) serve until the next experiment's holoRequest arrives.
-        preread = local_serve(comm, slm, holograms);
+        % 4) serve until the next experiment's holoRequest arrives (or abort).
+        [preread, aborted] = local_serve(comm, slm, holograms, last_abort_seq);
+        if aborted
+            for s = slm, try, s.stop(); catch, end, end   %#ok<AGROW>
+            last_abort_seq = local_current_abort(comm);
+            preread = [];
+            fprintf('Holo priming aborted; waiting for next prime.\n');
+        end
+    end
+end
+
+function seq = local_current_abort(comm)
+    seq = -inf;
+    try
+        a = comm.scan_config('abort');
+        if isstruct(a) && isfield(a, 'abort_seq') && ~isempty(a.abort_seq)
+            seq = a.abort_seq;
+        end
+    catch
     end
 end
 
@@ -135,14 +153,22 @@ function local_ack(comm, prime, ok, message)
     end
 end
 
-function preread = local_serve(comm, slm, holograms)
-    % Block on msg/holo. A firing-order CELL -> play it. A STRUCT is the next
+function [preread, aborted] = local_serve(comm, slm, holograms, abort_baseline)
+    % Poll msg/holo with a short timeout so the shared config/abort signal is
+    % caught promptly. A firing-order CELL -> play it. A STRUCT is the next
     % experiment's holoRequest -> hand it back so the outer loop re-primes.
-    preread = [];
+    preread = []; aborted = false;
     while true
-        msg = comm.read(300);
+        a = [];
+        try, a = comm.scan_config('abort'); catch, end
+        if isstruct(a) && isfield(a, 'abort_seq') && ~isempty(a.abort_seq) ...
+                && a.abort_seq > abort_baseline
+            aborted = true;
+            return
+        end
+        msg = comm.read(2);          % short timeout: re-check abort between waits
         if isempty(msg)
-            continue     % idle timeout; keep waiting (no crash, unlike ShootSequences)
+            continue                 % idle; keep waiting (no crash, unlike ShootSequences)
         end
         if isstruct(msg)
             preread = msg;
