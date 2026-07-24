@@ -100,7 +100,7 @@ figure(1); clf
 sutter.setRef()
 
 sz = size(bgd);
-UZ= linspace(-70,70,31);
+UZ= linspace(-100,100,31);
 
 dataUZ = zeros([sz numel(UZ)]);
 

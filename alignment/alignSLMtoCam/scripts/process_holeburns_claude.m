@@ -1,31 +1,31 @@
-disp('Moving files')
-tMov = tic;
-
-%on ScanImage Computer
-% destination = '''F:\frankenshare\FrankenscopeCalib''' ;
-destination = '''K:\Calib\Temp''';
-source = '''D:\Calib\Temp\calib*''';
-
-%clear invar
-invar = comm.read();
-% invar = msrecv(SISocket,0.01);
-while ~isempty(invar)
-    invar = comm.read();
-    % invar = msrecv(SISocket,0.01);
-end
-
-
-comm.send(['movefile(' source ',' destination ')'], 'si');
-% mssend(SISocket,);
-invar = comm.read();
-% invar = msrecv(SISocket,0.01);
-while ~isempty(invar)
-    invar = comm.read();
-    % invar = msrecv(SISocket,0.01);
-end
-disp(['Moved. Took ' num2str(toc(tMov)) 's']);
-MovT= toc(tMov);
-
+% disp('Moving files')
+% tMov = tic;
+% 
+% %on ScanImage Computer
+% % destination = '''F:\frankenshare\FrankenscopeCalib''' ;
+% destination = '''K:\Calib\Temp''';
+% source = '''D:\Calib\Temp\calib*''';
+% 
+% %clear invar
+% invar = comm.read();
+% % invar = msrecv(SISocket,0.01);
+% while ~isempty(invar)
+%     invar = comm.read();
+%     % invar = msrecv(SISocket,0.01);
+% end
+% 
+% 
+% comm.send(['movefile(' source ',' destination ')'], 'si');
+% % mssend(SISocket,);
+% invar = comm.read();
+% % invar = msrecv(SISocket,0.01);
+% while ~isempty(invar)
+%     invar = comm.read();
+%     % invar = msrecv(SISocket,0.01);
+% end
+% disp(['Moved. Took ' num2str(toc(tMov)) 's']);
+% MovT= toc(tMov);
+% 
 
 %% read/compute frame
 
@@ -55,11 +55,13 @@ baseFr = mean(fr(:,:,1:nOpto:end),3);
 % CONFIGURATION: hole-finding parameters
 % -------------------------------------------------------------------------
 SEARCH_RADIUS   = 40;   % px radius around expected XY to restrict search
-FINE_GAUSS      = 1.5;  % fine-scale Gaussian for small feature preservation
+FINE_GAUSS      = 1;  % fine-scale Gaussian for small feature preservation
 COARSE_GAUSS    = 20;   % coarse-scale Gaussian for background estimation
 DOG_SIGMA1      = 1.5;  % DoG small sigma (signal scale)
 DOG_SIGMA2      = 5;    % DoG large sigma (surround suppression)
 MIN_PEAK_ZSCORE = 2.5;  % minimum z-score of peak to accept detection
+EXCL_RADIUS = 30;  % px — tune to your hole spacing
+n_previous = 4;
 % -------------------------------------------------------------------------
 
 k=1; c=0; SIXYZ=[]; Frames=[];
@@ -67,7 +69,7 @@ k=1; c=0; SIXYZ=[]; Frames=[];
 % Track which hole index within each group we are targeting so we never
 % re-use the same expected position for consecutive frames.
 expectedXY_history = [];   % [x, y] of all accepted detections so far
-
+z_scores = [];
 for i=2:numel(files) % start at 2 because the first frame is the "background"
     t = tic;
     fprintf(['Loading/Processing Frame ' files(i).name]);
@@ -120,8 +122,8 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         % Also exclude a small exclusion zone around every PREVIOUSLY
         % detected hole to avoid re-detecting it.
         exclusionMask = false(nRows, nCols);
-        EXCL_RADIUS = 12;  % px — tune to your hole spacing
-        for prev = 1:size(expectedXY_history, 1)
+        start = max(1, size(expectedXY_history, 1) - n_previous);
+        for prev = start:size(expectedXY_history, 1)
             px = expectedXY_history(prev, 1);
             py = expectedXY_history(prev, 2);
             exclusionMask = exclusionMask | ...
@@ -129,8 +131,8 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         end
 
         % Combined mask: inside search region AND not previously detected
-        combinedMask = searchMask & ~exclusionMask;
-
+        %combinedMask = searchMask & ~exclusionMask;
+        combinedMask = ~exclusionMask;
         % ------------------------------------------------------------------
         % Step 4: Find peak within the masked DoG image.
         %         Use z-score gating: if the peak isn't strong enough,
@@ -144,23 +146,22 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         mu        = mean(validVals, 'omitnan');
         sigma     = std(validVals,  0, 'omitnan');
         zScore    = (peakVal - mu) / (sigma + eps);
-
         if zScore >= MIN_PEAK_ZSCORE
             % Reliable detection — use centroid of top-N% region for
             % sub-pixel accuracy rather than pure max, which is noisy.
             topThresh = mu + 2.0 * sigma;
             hotMask   = combinedMask & (dog_frame >= topThresh);
 
-            if sum(hotMask(:)) > 0
-                weights = dog_frame .* hotMask;
-                weights(weights < 0) = 0;
-                wSum = sum(weights(:)) + eps;
-                x = sum(RR(:) .* weights(:)) / wSum;   % row → SI-x
-                y = sum(CC(:) .* weights(:)) / wSum;   % col → SI-y
-            else
+            % if sum(hotMask(:)) > 0
+            %     weights = dog_frame .* hotMask;
+            %     weights(weights < 0) = 0;
+            %     wSum = sum(weights(:)) + eps;
+            %     x = sum(RR(:) .* weights(:)) / wSum;   % row → SI-x
+            %     y = sum(CC(:) .* weights(:)) / wSum;   % col → SI-y
+            % else
                 % Fallback to simple max within mask
-                [x, y] = function_findcenter(masked_dog);
-            end
+            [x, y] = function_findcenter(masked_dog);
+            % end
             detectionFlag = 'DETECTED';
         else
             % Weak / ambiguous — use expected position as best guess
@@ -171,20 +172,20 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         end
 
         % Record this detection to exclude from future frames
-        expectedXY_history(end+1, :) = [x, y]; %#ok<AGROW>
+        expectedXY_history(end+1, :) = [x, y]; 
 
         % ------------------------------------------------------------------
         % Diagnostic figure
         % ------------------------------------------------------------------
         figure(333)
         clf
-        subplot(1,4,1)
+        subplot(2,2,1)
         imagesc(Frame);  title('Raw frame'); axis image off; colorbar
 
-        subplot(1,4,2)
+        subplot(2,2,2)
         imagesc(toCalc_raw); title('BG-sub diff'); axis image off; colorbar
 
-        subplot(1,4,3)
+        subplot(2,2,3)
         imagesc(dog_frame);  title('DoG enhanced'); axis image off; colorbar
         hold on
         % Show search region boundary
@@ -194,7 +195,7 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         scatter(y, x, 80, 'r', 'filled', 'MarkerEdgeColor', 'w')
         scatter(expY, expX, 80, 'y', '+', 'LineWidth', 2)
 
-        subplot(1,4,4)
+        subplot(2,2,4)
         % Show masked DoG so the operator can see what the algorithm used
         dispIm = masked_dog;
         dispIm(isnan(dispIm)) = min(dog_frame(:));
@@ -206,11 +207,12 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
 
     else
         % First frame in a group: use expected position directly
+        zScore=0;
         x = XYtarg{k}(1, c);
         y = XYtarg{k}(2, c);
         expectedXY_history(end+1, :) = [x, y]; %#ok<AGROW>
     end
-
+    z_scores(end+1) = zScore;
     SIXYZ(:,end+1) = [x; y; zsToBlast(k)];
     disp([' Took ' num2str(toc(t)) ' s']);
 end
@@ -237,6 +239,7 @@ clf
 scatter3(SIXYZ(1,:), SIXYZ(2,:), SIXYZ(3,:), [], 'o')
 
 excl = SIXYZ(1,:)<=9 | SIXYZ(1,:)>=503| SIXYZ(2,:)<=9| SIXYZ(2,:)>=503;
+excl = excl | z_scores < 7;
 disp(['There were ' num2str(sum(excl)) ' of ' num2str(numel(excl)) ' points excluded.'])
 cam3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
@@ -244,7 +247,7 @@ SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (cam3XYZ(1:3,:))';
-errScalar =2.2;
+errScalar = 3;
 
 figure(2594)
 clf
@@ -271,13 +274,14 @@ SIXYZ = SIXYZbackup;
 slm3XYZ=slm3XYZ(1:3,1:size(SIXYZ,2));
 
 excl = SIXYZ(1,:)<=5 | SIXYZ(1,:)>=507| SIXYZ(2,:)<=5 | SIXYZ(2,:)>=507;
+excl = excl | z_scores < 7;
 
 slm3XYZ(:,excl)=[];
 SIXYZ(:,excl)=[];
 
 refAsk = SIXYZ(1:3,:)';
 refGet = (slm3XYZ(1:3,:))';
-errScalar = 2.1;
+errScalar = 3;
 
 figure(2616)
 clf

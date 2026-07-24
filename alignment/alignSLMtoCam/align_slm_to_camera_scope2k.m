@@ -60,20 +60,19 @@ disp('Ready')
 bas.preview()
 % bas.preview_set_cmax(80)
 
-    %% Make mSocketConnections with DAQ and SI Computers
+%% Make mSocketConnections with DAQ and SI Computers
 comm = HolochatInterface('holo');
 comm.send(calibration_wavelength, 'daq');
 %% Put all Manual Steps First so that it can be automated
 %% Set Power Levels
-pwr = 2.5; %in mW 0.3 for 900, 8 for 1100
-disp(['idividual hologra' ...
-    'm; power set to ' num2str(pwr) 'mW']);
+pwr = 0.75; %in mW 0.3 for 900, 8 for 1100
+disp(['idividual hologram; power set to ' num2str(pwr) 'mW']);
 
 
 %%
 disp('Find the spot and check if this is the right amount of power')
 % this needs to change depending on which SLM... probably
-slmCoords = [0.4 0.4 0.05 1]; % 0.
+slmCoords = [0.55 0.55 -0.01 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );
 
@@ -127,16 +126,16 @@ disp('First step Acquire Holograms')
 reloadHolos = 0; % CHANGE THIS IF "RECALIFBRATION"
 tSingleCompile = tic;
 %ranges set by exploration moving holograms looking at z1 fov.
-%slmXrange = [0.05 0.9];%900
-%slmYrange = [0.1, 0.95];%900
+%slmXrange = [0.0 0.85];%900
+%slmYrange = [0.05, 0.95];%900
 slmXrange = [0.10 0.95];% or 1100
-slmYrange = [0.05 0.95];% 1100
+slmYrange = [0.1 0.95];% 1100
 
 
 
 % set Z range
-%slmZrange = [-0.06, 0.05]; % 900
-slmZrange = [-0.01 0.08];%1100
+slmZrange = [-0.07, 0.02]; % 900
+%slmZrange = [-0.04 0.06];%1100
 %slmZrange = [-0.10 0.03];%607
 
 if ~reloadHolos
@@ -158,7 +157,7 @@ end
 
 disp(['Done compiling holograms. Took ' num2str(toc(tSingleCompile)) 's']);
 
-out.hololist=[];
+%out.hololist=[];
 
 %% Collect background frames for signal to noise testing
 disp('Collecting Background Frames');
@@ -594,15 +593,79 @@ end
 
 fprintf(['All Done. Total Took ' num2str(toc(multi_time)) 's\n']);
 %%
-process_holograms
+process_holograms;
 
-%% 
-nBurnGrid = 8; %number of points in the burn grid, deault 8
+%%
+nBurnGrid = 8; %number of points in the burn grid, deault ;
+
+%% Determine ScanImage FOV boundaries
+% this will also creates the burn pattern (but does not compute the CoC
+% for the point yets)
+
+% params
+SImatchThreshold = 0; % threshold for being in SI FOV (set to 0 to take whole range)
+fineBufferMargin = 0.1;
+burnBufferMargin = 0.01;
+FractionOmit = 0.1; % drop points from burn grid
+mvShortWait = 0.2;
+mvLongWait = 1;
+
+
+binarySI = ~isnan(SIpeakVal);
+SImatchProb = mean(binarySI'); % probability that point was detected aka that was in SI range
+SImatchXY = camXYZ(1:2,1:size(SIpeakVal,1)); % location of points in XYZ
+
+figure(8)
+clf
+scatter(SImatchXY(1,:),SImatchXY(2,:),[],SImatchProb,'filled');
+
+SIx = SImatchXY(1,SImatchProb>SImatchThreshold);
+SIy = SImatchXY(2,SImatchProb>SImatchThreshold);
+
+SIboundary = boundary(SIx',SIy');
+SIxboundary = SIx(SIboundary);
+SIyboundary = SIy(SIboundary);
+hold on
+plot(SIxboundary,SIyboundary)
+
+sz = size(Bgd);
+
+% for fine targets
+SImatchRangeXforFine = [max(min(SIx(SIboundary))-sz(1)*fineBufferMargin,1) ...
+    min(max(SIx(SIboundary))+sz(1)*fineBufferMargin,sz(1))];
+
+SImatchRangeYforFine = [max(min(SIy(SIboundary))-sz(2)*fineBufferMargin,1) ...
+    min(max(SIy(SIboundary))+sz(2)*fineBufferMargin,sz(2))];
+r = rectangle('position',...
+    [SImatchRangeXforFine(1) SImatchRangeYforFine(1) SImatchRangeXforFine(2)-SImatchRangeXforFine(1) SImatchRangeYforFine(2)-SImatchRangeYforFine(1)]);
+r.EdgeColor='g';
+
+
+% for hole burning
+SImatchRangeX = [max(min(SIx(SIboundary))-sz(1)*burnBufferMargin,1) ...
+    min(max(SIx(SIboundary))+sz(1)*burnBufferMargin,sz(1))];
+
+SImatchRangeY = [max(min(SIy(SIboundary))-sz(2)*burnBufferMargin,1) ...
+    min(max(SIy(SIboundary))+sz(2)*burnBufferMargin,sz(2))];
+
+r = rectangle('position',...
+    [SImatchRangeX(1) SImatchRangeY(1) SImatchRangeX(2)-SImatchRangeX(1) SImatchRangeY(2)-SImatchRangeY(1)]);
+r.EdgeColor='r';
+
+rline = line(NaN,NaN,'LineWidth',1','LineStyle', '-','color','r');
+gline = line(NaN,NaN,'LineWidth',1','LineStyle', '-','color','g');
+
+colorbar
+legend('Prob of SI FOV','Detected SI FOV','Burn Boundary Box','Calib Boundary Box')
+xlabel('Camera X pixels')
+ylabel('Camera Y Pixels')
+% axis equal
+axis image
+
 xpts = linspace(SImatchRangeX(1),SImatchRangeX(2),nBurnGrid);
 ypts = linspace(SImatchRangeY(1),SImatchRangeY(2),nBurnGrid);
 
-
-XYpts =[];
+XYpts = [];
 for i=1:nBurnGrid
     for k=1:nBurnGrid
         XYpts(:,end+1) = [xpts(i) ypts(k)];
@@ -612,8 +675,8 @@ end
 XYptsInBounds = inpolygon(XYpts(1,:),XYpts(2,:),SIxboundary,SIyboundary);
 XYpts = XYpts(:,XYptsInBounds);
 
-%figure out spacing of pts across zs
-zsToBlast = zsToUse;% match to SI Calib %linspace(0,90,11);% Changed to account for newer optotune 9/28/20; Changed to account for new optotune range 9/19/19 by Ian 0:10:80; %OptoPlanes to Blast
+% figure out spacing of pts across zs
+zsToBlast = zsToUse; % match to SI Calib
 interXdist = xpts(2)-xpts(1);
 interYdist = ypts(2)-ypts(1);
 
@@ -621,15 +684,16 @@ gridSide = ceil(sqrt(numel(zsToBlast)));
 xOff = round(interXdist/gridSide);
 yOff = round(interYdist/gridSide);
 
-%Turn into a more unique looking pattern
+% Turn into a more unique looking pattern
 numPts = size(XYpts,2);
-FractionOmit = 0.1; %changed down to 10% from 25% bc not really needed. 9/19/19 by Ian
 XYpts(:,randperm(numPts,round(numPts*FractionOmit)))=[];
 XYpts = reshape(XYpts,[2 numel(XYpts)/2]);
 
 disp([num2str(size(XYpts,2)) ' points per plane selected. ' num2str(size(XYpts,2)*numel(zsToBlast)) ' total'])
 
-intermediateFitsT = toc(tIntermediateFine);
+%% superffine
+superfine_holograms;
+
 
 %% Plot Hole Burn Stuff
 tCompileBurn = tic;
@@ -743,20 +807,31 @@ str = [];
 for ii = 1:length(zsToBlast)
     str = strcat(str, num2str(zsToBlast(ii)), ';');
 end
+transmission_pause = 0.5;
 
 comm.send(['hSI.hStackManager.arbitraryZs = [' str '];'], 'si');
+pause(transmission_pause);
 comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
+pause(transmission_pause);
 
 comm.send('hSI.hStackManager.enable = 1 ;', 'si');
+pause(transmission_pause);
 
 %comm.send('hSI.hBeams.pzAdjust = 0;', 'si');
-comm.send('hSI.hBeams.powers = 4;', 'si'); %power on SI laser. important no to use too much don't want to bleach
+% red at 392
+comm.send('hSI.hBeams.powers = 15;', 'si'); %power on SI laser. important no to use too much don't want to bleach
+pause(transmission_pause);
 
 comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
+pause(transmission_pause);
 comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
+pause(transmission_pause);
 comm.send('hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';', 'si');
+pause(transmission_pause);
 comm.send(['hSI.hScan2D.logFileStem = ' baseName ';'], 'si');
+pause(transmission_pause);
 comm.send('hSI.hScan2D.logFileCounter = 1;', 'si');
+pause(transmission_pause);
 
 comm.send(['hSICtl.updateView;'], 'si');
 
@@ -774,6 +849,7 @@ end
 disp('completed parameter set')
 
 %% Burn
+sutter.moveToRef;
 
 %AcquireBaseline
 disp('Acquire Baseline')
@@ -799,8 +875,10 @@ while wait
     end
 end
 %%
-% closest so far is 8, 1.5, still caused big burns though..
-burnPowerMultiplier = 10;% 20 for 1030?%10;%10; % back to 10 bc better DE 12/29/22, WH %5; 10;%change to 10 3/11/21 %previously 5; added by Ian 9/20/19
+% 1100: 20X and 0.3, also change to a 3X multiplier o timme greater than
+% 0.5s
+% 900: 5X and 0.3
+burnPowerMultiplier = 12;% 
 baseBurnTime = 0.3; %in seconds, very rough and not precise
 
 disp('Now Burning')
@@ -831,13 +909,13 @@ for k=1:numel(zsToBlast)%1:numel(zsToBlast)
         blastPower = pwr*burnPowerMultiplier /1000 /DE^1.25;
         
         if blastPower>2 %cap for errors, now using a high divided mode so might be high
-            blastPower =2;
+            blastPower = 2;
         end
 
         % blastPower = min(blastPower, 0.024); %  limit 0.024 for the 607
         burnTime = min(baseBurnTime / DE^2, 3);
         if burnTime > 0.5
-            burnTime=3*burnTime;
+            burnTime=3*burnTime; % used 3 for 1100, 2 for 900
         end
         fprintf('Burning for: %0.02fs\n', burnTime)
         stimT=tic;
@@ -898,7 +976,7 @@ disp(['Done Burning. Took ' num2str(burnT) 's']);
 disp('Done with Lasers and ScanImage now, you can turn it off')
 
 %% Move file to modulation
-process_holeburns
+process_holeburns_claude
 
 %% Save Output Function
 pathToUse = 'C:\Users\holos\Documents\SLM_Management\Calib_Data';

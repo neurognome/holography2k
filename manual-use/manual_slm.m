@@ -19,7 +19,7 @@ slm.stop();
 slm.wait_for_trigger = 0;
 slm.start();
 %%
-slmCoords = [0.4 0.4 0.02 1]; % 0.
+slmCoords = [0.4 0.4 0 1]; % 0.
 %slmCoords = [513/1024 513/1024 0 1]; % 0.
 
 [Holo, ~, ~ ] = function_Make_3D_SHOT_Holos( Setup,slmCoords );

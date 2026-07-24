@@ -1,10 +1,11 @@
-% function MsocketHolorequest2K()
+function MsocketHolorequest2K()
 % choose wavelengths
 %clear; clc
 wavelength = [1100 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 %% 
 
 comm = HolochatInterface('holo');
+    
 
 timeout = 1700;
 
@@ -19,7 +20,7 @@ Setup.CGHMethod = 2; % now defaults to GSS
 
 Setup.verbose = 0;
 Setup.useGPU = 1; % now defaults to GPU
-
+ 
 cycleiterations = 1; % Change this number to repeat the sequence N times instead of just once
 
 %Overwrite delay duration
@@ -36,9 +37,9 @@ for w = wavelength
         case 607
             c = importdata('C:\Users\holos\Documents\calibs\12-Nov-2024_Calib_607.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\20-Feb-2026_Calib_900_Nikon16x.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\11-Mar-2026_Calib_900_Nikon16x.mat');
         case 1100
-            c = importdata ('C:\Users\holos\Documents\calibs\23-Feb-2026_Calib_1100_Nikon16x.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\13-Mar-2026_Calib_1100_Nikon16x.mat');
         case 1030
             c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030.mat');
             % idk why it's doing this... but whatever

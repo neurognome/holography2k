@@ -1,7 +1,7 @@
 %clear; clc
-wavelength = 1030;%[1030];%[1030, 607]; %[900];% 607;%[1100, 900]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
+wavelength = [1100, 900];%[1030];%[1030, 607]; %[900];% 607;%[1100, 900]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
-test_z = true;
+test_z = false;
 comm = HolochatInterface('holo');
 
 timeout = 1700;
@@ -26,7 +26,7 @@ Setup.TimeToPickSequence = 0.05;    %second window to select sequence ID
 Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 % Setup.calib = 'C:\Users\holos\Documents\calibs\ActiveCalib.mat'; % here we need to somehow feed multiple calibrations?
 
-%% 
+%%
 calib = [];
 for w = wavelength
     switch w
@@ -35,18 +35,18 @@ for w = wavelength
         case 607
             c = importdata('C:\Users\holos\Documents\calibs\21-Oct-2024_Calib_607.mat');
         case 900
-            c = importdata('C:\Users\holos\Documents\calibs\20-Feb-2026_Calib_900_Nikon16x.mat');
+            c = importdata('C:\Users\holos\Documents\calibs\11-Mar-2026_Calib_900_Nikon16x.mat');
         case 1100
-            c = importdata ('C:\Users\holos\Documents\calibs\23-Feb-2026_Calib_1100_Nikon16x.mat');
+            c = importdata ('C:\Users\holos\Documents\calibs\13-Mar-2026_Calib_1100_Nikon16x.mat');
         case 1030
             c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030_DE_calib.mat');
             % idk why it's doing this... but whatever
             %c = rmfield(c, {'FitX', 'FitY', 'FitZ'});
-      
+
             %c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
             % c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
     end
-   calib = [calib, c]; 
+    calib = [calib, c];
 end
 
 sequences = {};
@@ -54,11 +54,17 @@ for w = 1:numel(wavelength)
     fprintf('Waiting for holorequest for %dnm...\n', wavelength(w))
     % hololist = generate_holograms2D(comm, Setup, calib(w));
 
-    %%%%%%%%%% test z-offset: start %%%%%%%%%%%%   
+    %%%%%%%%%% test z-offset: start %%%%%%%%%%%%
 
     if test_z
         clear myloc;
-        myloc = [ 171   252     0]; 
+        myloc = [  387   152     0
+            210   484     0
+            226   409     0
+            256   274     0
+            433   330     0
+            313   394     0
+            294   148     0];  %213   244     0
         if exist("myloc",'var')
             myOptionsIn = cell(1,2);
             myOptionsIn{1} = 'loc';
@@ -67,8 +73,9 @@ for w = 1:numel(wavelength)
             myOptionsIn = {};
         end
         [hololist,locs] = generate_holograms_tuneZoffset(comm, Setup, calib(w),...
-            'z offset',-165,'xy offset',[15-5,-41-20,0],myOptionsIn{:}); % 'loc',[265,270,0],   ,'loc',myloc  test on Feb 28, 2025
-    % -165
+            'z offset',-11+12,'xy offset',[8-20+11,0-3,0],myOptionsIn{:}); % 'loc',[265,270,0],   ,'loc',myloc  test on Feb 28, 2025
+        %                 Direction on Cam: [down, left]
+        % -165
     else
         hololist = generate_holograms(comm, Setup, calib(w));
 
@@ -83,13 +90,13 @@ if test_z
     r2use = 24;
     flagBlock = vecnorm(locs - xyc,2,2) < r2use;
     if any(flagBlock)
-        warning('Possible blocking of focus spot(s).');
+        warning(['Possible blocking of (',num2str(sum(flagBlock)),') focus spot(s).']);
     end
 end
 
 
 % fprintf('Waiting for holorequest for 900nm...\n')
-% hololist_900 = generate_holograms(control, Setup, CoC_900); 
+% hololist_900 = generate_holograms(control, Setup, CoC_900);
 % fprintf('Waiting for holorequest for 1100nm...\n')
 % hololist_1100 = generate_holograms(control, Setup, CoC_1100);
 fprintf('All holorequests received.\n')
@@ -117,13 +124,13 @@ end
 for ii = 1:numel(slm)
     slm(ii).feed(sequences{ii});
 end
-% 
-% 
+%
+%
 % orderBackup=[]; %Sequence list is archived in case the daq errors. normally disposed of after exp. 1/19/21
 % c=1;
 % while true
 %     orderBackup{c} = ShootSequencesMsocket2K(slm, sequences, comm);
 %     c=c+1;
 % end
-% 
+%
 

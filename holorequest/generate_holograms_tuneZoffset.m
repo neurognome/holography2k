@@ -93,9 +93,9 @@ else  %if I'm doing a custom sequence
 
     % KCZ modified to allow for scale; should do nothing if scale=1
     % scale = holoRequest.scale;
-    scale = 1.06; % 1.07 modified with the new opa system.
-    scale1 = 1.05; % 0.65
-    rotTheta = 0.2;
+    scale = 1.01; %  1.07 1.06 modified with the new opa system.
+    scale1 = 0.99; % 0.65 1.04
+    rotTheta = 0.05;
     rotT = [cos(rotTheta),sin(rotTheta); -sin(rotTheta),cos(rotTheta)];
     if scale ~= 1
         % center to 0,0, scale, then decenter
