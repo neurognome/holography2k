@@ -116,7 +116,7 @@ for i=2:numel(files) % start at 2 because the first frame is the "background"
         [nRows, nCols] = size(dog_frame);
 
         % Build a spatial mask centred on the expected position
-        [CC, RR] = meshgrid(1:nCols, 1:nRows);
+        [CC, RR] = meshgrid(1:nCols, 1:nRows); % check this, is this correct or does this need to be swapped?
         searchMask = sqrt((CC - expY).^2 + (RR - expX).^2) <= SEARCH_RADIUS;
 
         % Also exclude a small exclusion zone around every PREVIOUSLY
