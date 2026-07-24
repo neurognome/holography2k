@@ -1,9 +1,18 @@
-function hololist = generate_holograms_new(comm, Setup, CoC)
+function hololist = generate_holograms_new(comm, Setup, CoC, preread)
+% preread (optional): a holoRequest already read off the wire (e.g. by the
+% config-primed listener's serve loop, which distinguishes a holoRequest struct
+% from a firing-order cell). When given, skip the socket read and use it
+% directly; the reply to the DAQ (below) is unchanged. Omit for the original
+% behavior (block until a holoRequest arrives).
 
-x = 1;     
-HRin = []; 
-while isempty(HRin)
-    HRin = comm.read(0.5);
+x = 1;
+if nargin >= 4 && ~isempty(preread)
+    HRin = preread;
+else
+    HRin = [];
+    while isempty(HRin)
+        HRin = comm.read(0.5);
+    end
 end
 disp('new File Detected - running HoloRequest')
 holoRequest = HRin;
