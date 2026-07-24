@@ -38,6 +38,7 @@ function start_holo_listener(varargin)
     addpath(genpath('C:\Users\holos\Desktop\meadowlark'))
 
     comm = HolochatInterface('holo');
+    comm.flush();   % drop any stale msg/holo from a previous session
 
     Setup = function_loadparameters2();
     Setup.CGHMethod          = 2;      % GSS
@@ -56,6 +57,14 @@ function start_holo_listener(varargin)
     last_seq = -inf;
     preread  = [];
     last_abort_seq = local_current_abort(comm);   % ignore any stale abort at startup
+    % ignore a stale prime left on config/holo from a previous session
+    try
+        c0 = comm.scan_config('holo');
+        if isstruct(c0) && isfield(c0, 'prime_seq') && ~isempty(c0.prime_seq)
+            last_seq = c0.prime_seq;
+        end
+    catch
+    end
     fprintf('Holo listener up; waiting for a prime from the DAQ...\n');
     while true
         prime = comm.get_config();
