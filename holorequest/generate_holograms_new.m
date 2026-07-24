@@ -106,12 +106,25 @@ for p = patterns
     slm_coords = function_SItoSLM(p.targets, CoC); % this returns the 4th as an "attenuation", we want to inverse this, as in the original code
 
     slm_coords(:, 4) = 1./slm_coords(:, 4);
-    % poo poo out low DEs?
-    % add a zero order for dump
-    if p.zero_order_dump && (size(p.targets, 1)  < max_pattern_sz)
-        slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias';
+
+    % Apply the per-target power bias to the target amplitudes ALWAYS. This
+    % multiply previously lived only inside the zero_order_dump branch below, so a
+    % single-ensemble hologram (size == max_pattern_sz) silently ignored powerbias
+    % -- making per-target / calibrated power control a no-op. After the 1/DE
+    % inversion above, the delivered power at each target is proportional to
+    % powerbias, which is exactly what the graded-power calibration relies on.
+    % (The old struct path applied roiWeights unconditionally too; see
+    % generate_holograms.m.) powerbias(:) forces a column to match slm_coords(:,4)
+    % regardless of whether it was stored as a row or column vector.
+    slm_coords(:, 4) = slm_coords(:, 4) .* p.powerbias(:);
+
+    % Optionally dump the leftover (unrequested) power into the zero order so the
+    % absolute laser power can stay fixed across differently-sized patterns. Clamp
+    % the remainder at 0 so an over-unity powerbias sum can't create a negative
+    % zero-order amplitude (which would become NaN in the GS phase retrieval).
+    if p.zero_order_dump && (size(p.targets, 1) < max_pattern_sz)
         warning('Fixed laser power, dumping into 0 order...')
-        slm_coords = cat(1, slm_coords, [0.5, 0.5, 0,  1 - sum(slm_coords(:, 4))]);
+        slm_coords = cat(1, slm_coords, [0.5, 0.5, 0, max(0, 1 - sum(slm_coords(:, 4)))]);
     end
     disp(slm_coords)
     if holoRequest.spot_radius > 0

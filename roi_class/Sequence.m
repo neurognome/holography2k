@@ -66,7 +66,19 @@ classdef Sequence < handle
                 sz(k) = size(obj.patterns(k).targets, 1);
             end
 
-            out = (power_per_cell * max(sz)) / obj.average_de;
+            de = obj.average_de;
+            % Safety guard: diffraction_efficiency is only populated after the
+            % holoRequest is round-tripped through the SLM (transferHR/calculate_DE).
+            % If it is missing, average_de is 0/NaN and out -> Inf, which
+            % LaserPowerControl then CLAMPS to the laser's MAX power. Fail loudly
+            % here instead of silently commanding max power.
+            if isempty(de) || ~isfinite(de) || de <= 0
+                error('Sequence:calculate_power:badDE', ...
+                    ['average_de = %g -- patterns have no valid diffraction_efficiency. ', ...
+                     'Run transferHR (or calculate_DE) before calculate_power.'], de);
+            end
+
+            out = (power_per_cell * max(sz)) / de;
         end
 
         function out = average_de(obj)
