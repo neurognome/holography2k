@@ -171,13 +171,23 @@ function start_holo_listener(varargin)
             continue
         end
 
-        % 4) serve until the next experiment's holoRequest arrives (or abort).
-        [preread, aborted] = local_serve(comm, slm, holograms, last_abort_seq);
+        % 4) serve until the next prime appears, the next holoRequest arrives, or
+        %    an abort. Passing last_seq lets the serve loop notice a new prime on
+        %    config/holo instead of only reacting to traffic on msg/holo.
+        [preread, aborted, reprime] = local_serve(comm, slm, holograms, ...
+            last_abort_seq, last_seq);
         if aborted
             for s = slm, try, s.stop(); catch, end, end   %#ok<AGROW>
             last_abort_seq = local_current_abort(comm);
             preread = [];
             fprintf('Holo priming aborted; waiting for next prime.\n');
+        elseif reprime
+            % Stop the SLMs before re-priming: they are still armed with the
+            % finished experiment's holograms, and the next prime will load new
+            % ones. Nothing is in flight, so this is the clean handover point.
+            for s = slm, try, s.stop(); catch, end, end   %#ok<AGROW>
+            preread = [];
+            fprintf('New prime detected; re-priming.\n');
         end
     end
 end
@@ -401,11 +411,22 @@ function local_ack(comm, prime, ok, message)
     end
 end
 
-function [preread, aborted] = local_serve(comm, slm, holograms, abort_baseline)
+function [preread, aborted, reprime] = local_serve(comm, slm, holograms, abort_baseline, serving_seq)
     % Poll msg/holo with a short timeout so the shared config/abort signal is
     % caught promptly. A firing-order CELL -> play it. A STRUCT is the next
     % experiment's holoRequest -> hand it back so the outer loop re-primes.
-    preread = []; aborted = false;
+    %
+    % ALSO watches config/holo for a NEWER prime_seq than the one being served.
+    % Without that, the only ways out of here were an abort or a holoRequest
+    % arriving on msg/holo -- so between experiments the listener was not
+    % "waiting for the next prime" at all, it was waiting for a sequence. The DAQ
+    % writes the next prime to config/holo and then, since this listener had not
+    % declared its channels for it, sat in confirm_opto_agreement until
+    % HoloAckTimeout (120 s) before warning and pressing on. A circular wait: the
+    % DAQ would not send a holoRequest until the listener declared, and the
+    % listener would not look at the prime until a holoRequest arrived. Every
+    % experiment after the first paid two minutes and a spurious warning.
+    preread = []; aborted = false; reprime = false;
     while true
         a = [];
         try, a = comm.scan_config('abort'); catch, end
@@ -414,6 +435,16 @@ function [preread, aborted] = local_serve(comm, slm, holograms, abort_baseline)
             aborted = true;
             return
         end
+
+        % A new prime means the DAQ has moved on to the next experiment.
+        c = [];
+        try, c = comm.scan_config('holo'); catch, end
+        if isstruct(c) && isfield(c, 'prime_seq') && ~isempty(c.prime_seq) ...
+                && c.prime_seq > serving_seq
+            reprime = true;
+            return
+        end
+
         msg = comm.read(2);          % short timeout: re-check abort between waits
         if isempty(msg)
             continue                 % idle; keep waiting (no crash, unlike ShootSequences)
