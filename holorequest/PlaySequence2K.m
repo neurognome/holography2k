@@ -14,12 +14,27 @@ function PlaySequence2K(slm, holograms, order)
     end
     N = numel(slm);
 
+    % One firing order per SLM, checked BEFORE the play loop. A short order used
+    % to slip past the range check below (implicit expansion makes the comparison
+    % legal) and then throw "index out of bounds" at order{ii} inside the loop --
+    % which, called from a listener's serve loop, propagates outside the prime
+    % try/catch and kills the listener process while the DAQ keeps gating the
+    % laser. A long order was silently truncated at N instead.
+    if numel(order) ~= N
+        disp(['ERROR: got ' num2str(numel(order)) ' firing order(s) for ' ...
+              num2str(N) ' SLM(s). Not playing.'])
+        return
+    end
+
     disp(['received sequence of length ' num2str(length(order{1}))]);
     disp(order)
     if any(cellfun(@max, order) > cellfun(@(x) size(x, 3), holograms))
         disp('ERROR: Sequence error. blanking SLM...')
-        blank = zeros(size(holograms, 1), size(holograms, 2));
+        % Blank must be a FRAME, sized from the hologram stack itself. This read
+        % size() of the CELL ARRAY, which is 1xN, so the "blanking" path fed each
+        % SLM a 1xN row of zeros rather than a blank image.
         for ii = 1:N
+            blank = zeros(size(holograms{ii}, 1), size(holograms{ii}, 2));
             slm(ii).feed(blank);
         end
         return

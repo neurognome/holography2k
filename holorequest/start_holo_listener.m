@@ -47,12 +47,30 @@ function start_holo_listener(varargin)
     Setup.TimeToPickSequence = 0.05;
     Setup.SLM.timeout_ms     = opt.Timeout;
 
-    % SLM objects are created ONCE for the fixed wavelength set (as in the
-    % original script); only the compiled holograms change per experiment.
-    slm = [];
+    % SLM objects are created ONCE, because a Meadowlark board cannot safely be
+    % reopened per experiment. So 'Wavelengths' is THIS MACHINE'S SLM INVENTORY,
+    % not the experiment's channel set: a prime's channels are resolved against
+    % it by wavelength (local_resolve_slots), never by position.
+    slm_all = [];
     for w = wl
-        slm = [slm, get_slm(w)]; %#ok<AGROW>
+        slm_all = [slm_all, get_slm(w)]; %#ok<AGROW>
     end
+    assert(numel(slm_all) == numel(wl), 'holo_listener:slmOpenFailed', ...
+        ['Opened %d SLM(s) for %d wavelength(s). get_slm returns nothing for a ' ...
+         'wavelength it\ndoes not know (it handles 900, 1100, 1030, 589, 607), so ' ...
+         'check the set: %s.'], numel(slm_all), numel(wl), mat2str(wl));
+
+    % Two wavelengths can map to ONE physical board -- get_slm sends both 1100 and
+    % 1030 to board 2. That would drive one SLM with two hologram stacks, each
+    % overwriting the other, discovered only as garbage on the sample. Refuse at
+    % startup instead.
+    boards = [slm_all.board_id];
+    assert(numel(unique(boards)) == numel(boards), 'holo_listener:sharedBoard', ...
+        ['Wavelengths %s resolve to boards %s -- at least two share one board.\n' ...
+         'get_slm maps both 1100 and 1030 to board 2, so that set would drive one ' ...
+         'physical\nSLM with two hologram stacks. Restart with a set that maps 1:1.'], ...
+        mat2str(wl), mat2str(boards));
+    fprintf('SLM inventory: %s nm on boards %s.\n', mat2str(wl), mat2str(boards));
 
     last_seq = -inf;
     preread  = [];
@@ -74,28 +92,58 @@ function start_holo_listener(varargin)
         end
         last_seq = prime.prime_seq;
         stem = local_stem(prime);
-        fprintf('Priming holo for %s (wavelengths %s)...\n', stem, mat2str(wl));
+
+        % Which channels is the DAQ actually running, in which order? Taken from
+        % the prime, NOT from this listener's launch parameter -- the old code
+        % compiled hologram i against calib(i) of its OWN wavelength list, so a
+        % listener started with the order reversed silently built every hologram
+        % from the wrong wavelength's SLM calibration.
+        [chans, source] = local_prime_channels(prime, wl);
+        fprintf('Priming holo for %s (%s from %s)...\n', ...
+            stem, local_describe(chans), source);
 
         try
-            % 1) newest calibration per wavelength.
+            % 1) map each channel to an SLM slot BY WAVELENGTH, and load that
+            %    channel's newest calibration. Position is never assumed.
+            slot  = local_resolve_slots(chans, wl);
+            slm   = slm_all(slot);
             calib = [];
-            for w = wl
-                calib = [calib, find_latest_calib(w, opt.CalibDir)]; %#ok<AGROW>
+            cname = cell(1, numel(chans));
+            for k = 1:numel(chans)
+                [c, f] = local_calib_for(chans(k).wavelength, opt.CalibDir);
+                calib  = [calib, c]; %#ok<AGROW>
+                cname{k} = f;
             end
 
-            % 2) compile holograms (blocks on the DAQ transferHR per wavelength,
-            %    in the same order the DAQ sends them). wl(1)'s holoRequest may
-            %    already be in hand from the serve loop (preread).
-            holograms = cell(1, numel(wl));
-            for wi = 1:numel(wl)
-                if wi == 1 && ~isempty(preread)
-                    hololist = generate_holograms_new(comm, Setup, calib(wi), preread);
-                    preread  = [];
-                else
-                    hololist = generate_holograms_new(comm, Setup, calib(wi));
+            % Tell the DAQ what we resolved, BEFORE compiling. Its own topic, so
+            % holo_status keeps meaning "primed and armed" and the launcher's
+            % readiness lamp cannot go green early.
+            local_declare(comm, prime, true, 'channels resolved', chans, source, cname);
+
+            % 2) compile holograms. Each arriving holoRequest is matched to its
+            %    channel by the tag transferHR stamps on it; an untagged request
+            %    (a pre-opto DAQ) falls back to the next unfilled slot, which
+            %    reproduces the old positional behaviour exactly.
+            holograms = cell(1, numel(chans));
+            got = false(1, numel(chans));
+            for n = 1:numel(chans)
+                HR = preread;
+                preread = [];
+                if isempty(HR)
+                    HR = [];   % generate_holograms_new reads it itself
                 end
-                holograms{wi} = uint8(hololist);
+                k = local_match_channel(HR, chans, got);
+                if isempty(HR)
+                    hololist = generate_holograms_new(comm, Setup, calib(k));
+                else
+                    hololist = generate_holograms_new(comm, Setup, calib(k), HR);
+                end
+                holograms{k} = uint8(hololist);
+                got(k) = true;
             end
+            assert(all(got), 'holo_listener:missingChannel', ...
+                'No holoRequest arrived for channel(s): %s.', ...
+                strjoin({chans(~got).name}, ', '));
             comm.flush();
 
             % 3) (re)arm the SLM(s) for triggered playback.
@@ -110,6 +158,14 @@ function start_holo_listener(varargin)
             local_ack(comm, prime, true, 'holograms compiled');
         catch err
             fprintf('Holo prime FAILED: %s\n', err.message);
+            % STOP THE SLMs FIRST. The arm loop is the last step above, so a throw
+            % anywhere before it used to leave the boards armed with the PREVIOUS
+            % experiment's holograms -- while the DAQ, having been told nothing,
+            % went on to gate the laser against them.
+            for s = slm_all
+                try, s.stop(); catch, end
+            end
+            local_declare(comm, prime, false, err.message, chans, source, {});
             local_ack(comm, prime, false, err.message);
             preread = [];
             continue
@@ -123,6 +179,189 @@ function start_holo_listener(varargin)
             preread = [];
             fprintf('Holo priming aborted; waiting for next prime.\n');
         end
+    end
+end
+
+function [chans, source] = local_prime_channels(prime, inventory_wl)
+%LOCAL_PRIME_CHANNELS The ordered channel table for this prime, and where it came from.
+%   Three sources, best first, and the caller PRINTS which one was used so an
+%   operator can see whether the DAQ is speaking the channel protocol or the
+%   listener is guessing:
+%     1) prime.opto        -- the rig's opto table (name + wavelength per channel)
+%     2) prime.wavelengths -- ordered wavelengths only; names synthesised. The
+%                             current DAQ already sends this (prime_info derives
+%                             it), so order/count disagreement is caught TODAY,
+%                             before any DAQ-side change.
+%     3) this listener's own inventory -- the pre-existing behaviour, used only
+%                             when the prime carries neither. Least safe, so it
+%                             is labelled as a guess.
+    chans = struct('name', {}, 'wavelength', {});
+    source = '';
+
+    if isstruct(prime) && isfield(prime, 'opto') && ~isempty(prime.opto)
+        t = prime.opto;
+        for i = 1:numel(t)
+            chans(i).name = char(local_field(t(i), 'name', sprintf('ch%d', i)));
+            chans(i).wavelength = double(local_field(t(i), 'wavelength', NaN));
+        end
+        source = 'prime.opto';
+    elseif isstruct(prime) && isfield(prime, 'wavelengths') && ~isempty(prime.wavelengths)
+        w = reshape(double(prime.wavelengths), 1, []);
+        for i = 1:numel(w)
+            chans(i).name = sprintf('%dnm', w(i));
+            chans(i).wavelength = w(i);
+        end
+        source = 'prime.wavelengths';
+    else
+        w = reshape(double(inventory_wl), 1, []);
+        for i = 1:numel(w)
+            chans(i).name = sprintf('%dnm', w(i));
+            chans(i).wavelength = w(i);
+        end
+        source = 'this listener''s inventory (prime carried no channel info)';
+    end
+
+    assert(~isempty(chans), 'holo_listener:noChannels', ...
+        'Prime carried no opto channels and this listener has no wavelengths.');
+    bad = ~isfinite([chans.wavelength]);
+    assert(~any(bad), 'holo_listener:badWavelength', ...
+        'Primed channel(s) %s have no usable wavelength.', ...
+        strjoin({chans(bad).name}, ', '));
+end
+
+function slot = local_resolve_slots(chans, inventory_wl)
+%LOCAL_RESOLVE_SLOTS Channel -> SLM index, BY WAVELENGTH.
+%   The old code paired the i-th holoRequest with calib(i) and slm(i) of this
+%   listener's own list, so a listener launched as [900 1100] against a DAQ
+%   sending 1100 first compiled each hologram against the other wavelength's
+%   affine and returned the other's diffraction efficiency -- which then set the
+%   laser power. Resolving by wavelength makes position irrelevant.
+    inventory_wl = reshape(double(inventory_wl), 1, []);
+    slot = zeros(1, numel(chans));
+    for k = 1:numel(chans)
+        hit = find(inventory_wl == chans(k).wavelength, 1);
+        assert(~isempty(hit), 'holo_listener:unopenedWavelength', ...
+            ['The DAQ primed channel ''%s'' at %d nm, but this listener opened ' ...
+             'SLMs for %s.\nRestart it including that wavelength:\n    ' ...
+             'start_holo_listener(''Wavelengths'', %s)'], ...
+            chans(k).name, chans(k).wavelength, mat2str(inventory_wl), ...
+            mat2str(unique([inventory_wl, chans(k).wavelength], 'stable')));
+        slot(k) = hit;
+    end
+    assert(numel(unique(slot)) == numel(slot), 'holo_listener:duplicateWavelength', ...
+        ['Two primed channels resolve to the same SLM: %s. Channels sharing a ' ...
+         'wavelength need\nseparate boards, which this listener cannot infer from ' ...
+         'the wavelength alone.'], local_describe(chans));
+end
+
+function k = local_match_channel(HR, chans, got)
+%LOCAL_MATCH_CHANNEL Which channel does this holoRequest belong to?
+%   Prefers the tag the DAQ stamps on the request (name, else wavelength). An
+%   UNTAGGED request falls back to the next unfilled slot, which is exactly the
+%   old positional behaviour -- so a pre-opto DAQ still works unchanged. A tag
+%   naming an unknown channel, or one already filled, is refused rather than
+%   silently attributed to a neighbour.
+    k = [];
+    if isstruct(HR) && ~isempty(HR)
+        if isfield(HR, 'channel') && ~isempty(HR.channel)
+            k = find(strcmp({chans.name}, char(HR.channel)), 1);
+            assert(~isempty(k), 'holo_listener:unknownChannel', ...
+                'holoRequest is tagged channel ''%s'', which was not primed (%s).', ...
+                char(HR.channel), local_describe(chans));
+        elseif isfield(HR, 'wavelength') && ~isempty(HR.wavelength)
+            k = find([chans.wavelength] == double(HR.wavelength), 1);
+            assert(~isempty(k), 'holo_listener:unknownChannel', ...
+                'holoRequest is tagged %d nm, which was not primed (%s).', ...
+                double(HR.wavelength), local_describe(chans));
+        end
+        if ~isempty(k)
+            assert(~got(k), 'holo_listener:duplicateChannel', ...
+                ['Two holoRequests both claim channel ''%s''. The extra one would ' ...
+                 'otherwise become\nthe next experiment''s first request -- a ' ...
+                 'persistent cross-experiment off-by-one.'], chans(k).name);
+            return
+        end
+    end
+    k = find(~got, 1);   % untagged: next unfilled slot (legacy DAQ)
+    assert(~isempty(k), 'holo_listener:tooManyRequests', ...
+        'Received more holoRequests than the %d channel(s) primed.', numel(chans));
+end
+
+function [c, fname] = local_calib_for(wavelength, calib_dir)
+%LOCAL_CALIB_FOR Newest calibration for a wavelength, plus its filename.
+%   The filename is reported to the DAQ so an operator can see WHICH calibration
+%   each channel got, rather than trusting that the newest file is the right one.
+    c = find_latest_calib(wavelength, calib_dir);
+    fname = '';
+    try
+        if isstruct(c) && isfield(c, 'file') && ~isempty(c.file)
+            [~, n, e] = fileparts(char(c.file));
+            fname = [n e];
+        end
+    catch
+    end
+end
+
+function local_declare(comm, prime, ok, message, chans, source, cnames)
+%LOCAL_DECLARE Publish the resolved channel table on its OWN topic.
+%   Deliberately not holo_status: that means "primed and armed", and the
+%   launcher's readiness lamp reads it. Declaring resolution there would turn the
+%   lamp green before a single hologram had been compiled.
+    d = struct('who', 'holo', 'ok', logical(ok), 'message', message, ...
+               'protocol', 'opto/1', 'source', source);
+    if isstruct(prime) && isfield(prime, 'prime_seq')
+        d.prime_seq = prime.prime_seq;
+    end
+    d.stem = local_stem(prime);
+    d.n_channels = numel(chans);
+    names = {}; wls = [];
+    for k = 1:numel(chans)
+        names{end+1} = chans(k).name;      %#ok<AGROW>
+        wls(end+1)   = chans(k).wavelength; %#ok<AGROW>
+    end
+    d.names = names;
+    d.wavelengths = wls;
+    d.signature = local_signature(chans);
+    d.calibrations = cnames;
+    try
+        comm.set_config(d, 'holo_channels');
+    catch
+    end
+end
+
+function sig = local_signature(chans)
+%LOCAL_SIGNATURE Must match holodaq's opto_signature for the same table.
+%   Duplicated rather than shared because this file runs on the holography
+%   computer, which does not have holodaq's rigs/ on its path. Format:
+%   name@wavelength#board, joined by '|'. Board is 'auto' here: this side
+%   resolves the board from the wavelength, so it has nothing else to report.
+    if isempty(chans)
+        sig = 'none';
+        return
+    end
+    parts = cell(1, numel(chans));
+    for i = 1:numel(chans)
+        parts{i} = sprintf('%s@%d#auto', chans(i).name, chans(i).wavelength);
+    end
+    sig = strjoin(parts, '|');
+end
+
+function s = local_describe(chans)
+    if isempty(chans)
+        s = '<no channels>';
+        return
+    end
+    p = cell(1, numel(chans));
+    for i = 1:numel(chans)
+        p{i} = sprintf('%s@%dnm', chans(i).name, chans(i).wavelength);
+    end
+    s = strjoin(p, ', ');
+end
+
+function v = local_field(s, name, default)
+    v = default;
+    if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+        v = s.(name);
     end
 end
 
