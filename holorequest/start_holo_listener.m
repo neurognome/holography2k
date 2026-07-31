@@ -11,12 +11,25 @@ function start_holo_listener(varargin)
 %   The original MsocketHolorequest2K.m is unchanged and remains the manual
 %   fallback.
 %
-%   Options:
+%   Configuration comes from the rig. This machine has no rig file of its own, so
+%   values are read from what the DAQ published to holochat via
+%   publish_rig_config (rig_remote_get: config/rig -> a local rig -> a literal).
+%   The listener prints each value and which of those three supplied it. If the
+%   broker is cold it starts anyway on the old literals and says so, because a
+%   listener that refuses to boot is worse than one running on last week's paths.
+%
+%   Options (an explicit value always outranks the rig):
 %     'Wavelengths' (default [1100 900]) -- must match the order the DAQ
 %         transfers holoRequests (FullExperiment.initialize: hr1100 then hr900).
 %         Changing the wavelength SET requires restarting this listener.
-%     'CalibDir'    (default C:\Users\holos\Documents\calibs)
-%     'Timeout'     (default 1700 ms) -- SLM trigger timeout.
+%     'CalibDir'    (default rig.paths.calib_dir)
+%     'Timeout'     (default rig.holo.slm_timeout_ms) -- SLM trigger timeout.
+%
+%   Paths: this checkout is added by deriving it from this file's own location,
+%   so it no longer names one machine's username. The Meadowlark SDK is a
+%   per-machine install rather than part of a checkout, so it comes from
+%   rig.paths.slm_sdk. holodaq must already be on this machine's path -- it has to
+%   be, since HolochatInterface is what reads the rig config in the first place.
 %
 %   How re-prime stays race-free: the serve loop reads msg/holo and switches on
 %   type -- a firing-order CELL is played; a holoRequest STRUCT means the next
@@ -26,26 +39,73 @@ function start_holo_listener(varargin)
 %   See also: MsocketHolorequest2K (fallback), PlaySequence2K, find_latest_calib,
 %             generate_holograms_new, prime_info.
 
+    % '' means "ask the rig" -- resolved below, once holodaq is reachable. An
+    % explicit value always wins, so every documented invocation still works.
     p = inputParser;
+    % Wavelengths keeps its historical default here. It decides which SLM boards
+    % get OPENED, and moving that to the rig's opto table has to happen in the
+    % same change that teaches local_signature to report the real board -- see the
+    % note in Scope2KRig above rig.opto. Not this commit.
     p.addParameter('Wavelengths', [1100 900]);
-    p.addParameter('CalibDir', 'C:\Users\holos\Documents\calibs');
-    p.addParameter('Timeout', 1700);
+    p.addParameter('CalibDir', '');
+    p.addParameter('Timeout', []);
     p.parse(varargin{:});
     opt = p.Results;
     wl  = opt.Wavelengths;
 
-    addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
-    addpath(genpath('C:\Users\holos\Desktop\meadowlark'))
+    % This checkout, wherever it happens to live. Was
+    % genpath('C:\Users\holos\Documents\GitHub\holography2k'), which named one
+    % machine's username and folder layout; deriving it from this file's own
+    % location does the same job on any machine. holodaq is NOT added here -- it is
+    % already on this machine's path (HolochatInterface below has always been
+    % resolved before these addpaths ran).
+    addpath(genpath(fileparts(fileparts(mfilename('fullpath')))));
 
     comm = HolochatInterface('holo');
     comm.flush();   % drop any stale msg/holo from a previous session
 
+    % ---- config -------------------------------------------------------------
+    % This machine has no rig file, so everything comes from what the DAQ
+    % published to holochat (rig_remote_get: config/rig -> local rig -> literal).
+    % Reported explicitly, because the previous behaviour was a silent fallback to
+    % whatever was hardcoded here.
+    [calib_dir, calib_src] = local_cfg(opt.CalibDir, 'paths.calib_dir', ...
+        'C:\Users\holos\Documents\calibs');
+    % The Meadowlark SDK is genuinely per-machine (an install location, not part of
+    % any checkout), so it stays a rig value rather than being derived.
+    [slm_sdk, sdk_src] = local_cfg([], 'paths.slm_sdk', ...
+        'C:\Users\holos\Desktop\meadowlark');
+    if ~isempty(slm_sdk) && isfolder(slm_sdk)
+        addpath(genpath(slm_sdk));
+    elseif ~isempty(slm_sdk)
+        warning('holo_listener:noSlmSdk', ...
+            ['The Meadowlark SDK folder does not exist:\n  %s\nget_slm will fail ' ...
+             'to open a board. Set paths.slm_sdk in the rig file and re-run\n' ...
+             'publish_rig_config() on the DAQ.'], slm_sdk);
+    end
+    [cgh_method, cgh_src]  = local_cfg([], 'holo.cgh_method', 2);
+    [use_gpu, gpu_src]     = local_cfg([], 'holo.use_gpu', true);
+    [timeout_ms, to_src]   = local_cfg(opt.Timeout, 'holo.slm_timeout_ms', 1700);
+
+    fprintf('--- holo listener config ---\n');
+    fprintf('  calib dir   : %s   (%s)\n', calib_dir, calib_src);
+    fprintf('  slm sdk     : %s   (%s)\n', slm_sdk, sdk_src);
+    fprintf('  cgh method  : %d   (%s)\n', cgh_method, cgh_src);
+    fprintf('  use gpu     : %d   (%s)\n', use_gpu, gpu_src);
+    fprintf('  slm timeout : %d ms   (%s)\n', timeout_ms, to_src);
+    if ~isfolder(calib_dir)
+        warning('holo_listener:noCalibDir', ...
+            ['The calibration folder does not exist:\n  %s\nfind_latest_calib ' ...
+             'will fail when a prime arrives. Fix paths.calib_dir in the rig file ' ...
+             'and\nre-run publish_rig_config() on the DAQ, then restart me.'], calib_dir);
+    end
+
     Setup = function_loadparameters2();
-    Setup.CGHMethod          = 2;      % GSS
+    Setup.CGHMethod          = cgh_method;
     Setup.verbose            = 0;
-    Setup.useGPU             = 1;
+    Setup.useGPU             = double(logical(use_gpu));
     Setup.TimeToPickSequence = 0.05;
-    Setup.SLM.timeout_ms     = opt.Timeout;
+    Setup.SLM.timeout_ms     = timeout_ms;
 
     % SLM objects are created ONCE, because a Meadowlark board cannot safely be
     % reopened per experiment. So 'Wavelengths' is THIS MACHINE'S SLM INVENTORY,
@@ -110,7 +170,7 @@ function start_holo_listener(varargin)
             calib = [];
             cname = cell(1, numel(chans));
             for k = 1:numel(chans)
-                [c, f] = local_calib_for(chans(k).wavelength, opt.CalibDir);
+                [c, f] = local_calib_for(chans(k).wavelength, calib_dir);
                 calib  = [calib, c]; %#ok<AGROW>
                 cname{k} = f;
             end
@@ -150,7 +210,7 @@ function start_holo_listener(varargin)
             for s = slm
                 s.stop();
                 s.wait_for_trigger = 1;
-                s.timeout_ms = opt.Timeout;
+                s.timeout_ms = timeout_ms;
                 s.start();
             end
 
@@ -338,6 +398,28 @@ function local_declare(comm, prime, ok, message, chans, source, cnames)
     catch
     end
 end
+
+function [v, src] = local_cfg(explicit, rig_path, fallback)
+%LOCAL_CFG One config value: an explicit argument, else the rig, else a literal.
+%   Returns the value and a short string naming where it came from, so the
+%   listener's startup banner can say which config it is actually running on.
+%   rig_remote_get does the config/rig -> local rig -> fallback resolution; this
+%   only adds the "caller passed it explicitly" tier on top.
+    if ~isempty(explicit)
+        v = explicit;
+        src = 'explicit argument';
+        return
+    end
+    try
+        [v, src] = rig_remote_get(rig_path, fallback);
+    catch err
+        % holodaq not on this machine's path, or the broker unreachable in a way
+        % rig_remote_get did not absorb. Still start, on the old literal.
+        v = fallback;
+        src = sprintf('literal (rig lookup failed: %s)', err.message);
+    end
+end
+
 
 function sig = local_signature(chans)
 %LOCAL_SIGNATURE Must match holodaq's opto_signature for the same table.
