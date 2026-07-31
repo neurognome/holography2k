@@ -166,6 +166,19 @@ function start_holo_listener(varargin)
         % listener started with the order reversed silently built every hologram
         % from the wrong wavelength's SLM calibration.
         [chans, source] = local_prime_channels(prime, wl);
+
+        % A prime that speaks the channel protocol and declares ZERO channels is a
+        % vis-only experiment. There is nothing to compile, and it must NOT be
+        % mistaken for "the prime carried no channel information" -- doing that
+        % synthesised this machine's whole inventory and then blocked forever in
+        % generate_holograms_new waiting for holoRequests the DAQ was never going
+        % to send, wedging the listener for every subsequent experiment.
+        if isempty(chans)
+            fprintf('Prime %s declares no opto channels (%s) -- nothing to compile.\n', ...
+                stem, source);
+            continue
+        end
+
         fprintf('Priming holo for %s (%s from %s)...\n', ...
             stem, local_describe(chans), source);
 
@@ -300,6 +313,23 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
             chans(i).slm_board = [];   % not declared: 'auto', same as the DAQ sends
         end
         source = 'prime.wavelengths';
+    elseif local_declares_zero(prime)
+        % The prime SPEAKS the protocol and says there are no opto channels: a
+        % vis-only experiment. That is information, not the absence of it. Return
+        % an empty table; the caller skips the prime entirely.
+        %
+        % This branch must come BEFORE the inventory fallback. Without it, a
+        % vis prime (prime_info sends opto empty, n_channels 0, wavelengths [])
+        % failed both tests above and fell through to "no channel info", so the
+        % listener synthesised its whole inventory, loaded every calibration,
+        % declared itself ready for channels nobody asked about, and then blocked
+        % forever in generate_holograms_new -- which has no timeout and no abort
+        % check. That wedged the listener OUTSIDE its own control flow: every
+        % later prime went unread, so the next photostim run burned its full
+        % HoloAckTimeout and continued on the old positional convention with the
+        % channel-agreement gate silently disabled.
+        source = sprintf('prime declares 0 channels, protocol %s', ...
+            char(local_field(prime, 'opto_protocol', '<unversioned>')));
     else
         w = reshape(double(inventory_wl), 1, []);
         for i = 1:numel(w)
@@ -310,8 +340,13 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
         source = 'this listener''s inventory (prime carried no channel info)';
     end
 
-    assert(~isempty(chans), 'holo_listener:noChannels', ...
+    % Empty is legitimate ONLY via the zero-declaration branch above; anywhere else
+    % it means this listener has no wavelengths either.
+    assert(~isempty(chans) || ~isempty(source), 'holo_listener:noChannels', ...
         'Prime carried no opto channels and this listener has no wavelengths.');
+    if isempty(chans)
+        return
+    end
     bad = ~isfinite([chans.wavelength]);
     assert(~any(bad), 'holo_listener:badWavelength', ...
         'Primed channel(s) %s have no usable wavelength.', ...
@@ -538,6 +573,31 @@ function local_assert_boards(chans, slm)
              'drive the wrong SLM.'], ...
             chans(k).name, chans(k).wavelength, double(want), double(got));
     end
+end
+
+
+function tf = local_declares_zero(prime)
+%LOCAL_DECLARES_ZERO True when the prime explicitly says "no opto channels".
+%   Distinguishes a vis-only prime from a legacy prime that carries no channel
+%   information at all. Either marker is enough: n_channels present and 0, or the
+%   protocol tag present with an empty opto table. prime_info sends both.
+    tf = false;
+    if ~isstruct(prime)
+        return
+    end
+    if isfield(prime, 'n_channels') && ~isempty(prime.n_channels) ...
+            && double(prime.n_channels) == 0
+        tf = true;
+        return
+    end
+    % Protocol tag present => this DAQ knows how to declare channels, so an EMPTY
+    % opto table is a statement rather than an omission. The isempty test is
+    % load-bearing: without it a full multi-channel prime satisfies this too, and
+    % while the caller's branch order happens to catch prime.opto first today, a
+    % predicate that answers "declares zero channels" for a 2-channel prime is a
+    % trap for whoever reorders those branches next.
+    tf = isfield(prime, 'opto_protocol') && ~isempty(prime.opto_protocol) ...
+        && isfield(prime, 'opto') && isempty(prime.opto);
 end
 
 

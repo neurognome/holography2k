@@ -28,7 +28,9 @@ function PlaySequence2K(slm, holograms, order)
 
     disp(['received sequence of length ' num2str(length(order{1}))]);
     disp(order)
-    if any(cellfun(@max, order) > cellfun(@(x) size(x, 3), holograms))
+    % max([]) is [], which makes cellfun throw on non-uniform output, so an
+    % empty firing order errored here instead of being reported below.
+    if any(cellfun(@(x) max([x(:); 0]), order) > cellfun(@(x) size(x, 3), holograms))
         disp('ERROR: Sequence error. blanking SLM...')
         % Blank must be a FRAME, sized from the hologram stack itself. This read
         % size() of the CELL ARRAY, which is 1xN, so the "blanking" path fed each
@@ -45,7 +47,11 @@ function PlaySequence2K(slm, holograms, order)
 
     while ~timeout && any(counter <= (cellfun(@numel, order)'))
         for ii = 1:N
-            if size(holograms{ii}, 3) >= counter(ii)
+            % Bound by BOTH the order length and the hologram count. This
+            % checked only the hologram count while indexing order{ii}, so a
+            % channel with a SHORTER firing order kept being fed until the
+            % index ran off its end -- mid-trial, from inside local_serve.
+            if counter(ii) <= numel(order{ii}) && size(holograms{ii}, 3) >= counter(ii)
                 slm(ii).feed(holograms{ii}(:, :, order{ii}(counter(ii))));
                 counter(ii) = counter(ii) + 1;
             end
