@@ -1,7 +1,9 @@
 %% What is tthe rep rate?
 
-addpath(genpath('C:\Users\holos\Documents\GitHub'))
-addpath(genpath('C:\Users\holos\Documents\_code'))
+% Put this checkout and its holodaq on the path. Replaces three hardcoded
+% addpaths naming one machine's username; see holo_paths.
+addpath(fileparts(mfilename('fullpath')), '-end');
+holo_paths();
 
 clear
 clc

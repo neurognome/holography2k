@@ -1,13 +1,22 @@
 %%Create DAQ Session
+% Put this checkout and its holodaq on the path (see holo_paths).
+addpath(fileparts(fileparts(mfilename('fullpath'))), '-end');
+holo_paths();
+
+% Load the rig ONCE, up front, before anything reads it. rig_get resolves against
+% the rig loaded this session, so a rig_get before this line silently returns its
+% fallback -- which on this rig happens to equal the real value, making the mistake
+% invisible.
+try, load_rig(); catch, end
+
 fprintf('Starting daq...\r')
 
-fprintf('Loading defaults... ')
-setup = getDefaults();  
-fprintf('OK.\n')
-
 fprintf('Making MATLAB NIDAQ object... ')
+% Rate from the rig. This called getDefaults(), which exists in none of the four
+% repos -- it belonged to the K:\ scaffolding this rig file replaced -- so line 5
+% would have errored before anything else ran.
 dq = daq('ni');
-dq.Rate = setup.daqrate;
+dq.Rate = rig_get('daq.rate', 20000);
 fprintf('OK.\n')
 
 fprintf('Making SerialPort object... ')
@@ -16,7 +25,6 @@ fprintf('Making SerialPort object... ')
 % device config as before with the port no longer hardcoded.
 hwp_cfg = struct('port', 'COM5', 'baud', 9600, 'byte_order', 'big-endian', ...
     'parity', 'none', 'stop_bits', 1, 'data_bits', 8, 'terminator', 'CR/LF');
-try, load_rig(); catch, end
 s = open_serial(rig_get('serial.hwp', hwp_cfg));
 fprintf('OK.\n')
 %%
@@ -31,7 +39,6 @@ fprintf('OK.\n')
 % path. Declare a modules.fpc_1030 in the rig file to bring it under the same roof.
 LEGACY_LUT = ['C:\Users\holos\Documents\power-calibrations\' ...
               '231031_1030nm_25kHz_30AOM_uni_gate_calibration.mat'];
-try, load_rig(); catch, end
 cal_900  = rig_get('modules.fpc_900.calibration',  LEGACY_LUT);
 cal_1100 = rig_get('modules.fpc_1100.calibration', LEGACY_LUT);
 cal_1030 = rig_get('modules.fpc_1030.calibration', LEGACY_LUT);
