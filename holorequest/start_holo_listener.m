@@ -19,11 +19,17 @@ function start_holo_listener(varargin)
 %   listener that refuses to boot is worse than one running on last week's paths.
 %
 %   Options (an explicit value always outranks the rig):
-%     'Wavelengths' (default [1100 900]) -- must match the order the DAQ
-%         transfers holoRequests (FullExperiment.initialize: hr1100 then hr900).
-%         Changing the wavelength SET requires restarting this listener.
+%     'Wavelengths' (default: the rig's opto table) -- THIS MACHINE'S SLM
+%         inventory. Pass a list only to open a deliberate subset. Changing the
+%         set requires restarting this listener, because the boards are opened
+%         once at startup.
 %     'CalibDir'    (default rig.paths.calib_dir)
 %     'Timeout'     (default rig.holo.slm_timeout_ms) -- SLM trigger timeout.
+%
+%   Each opto channel may pin its own slm_board and slm_lut in the rig file, which
+%   is what a rig with two arms on one wavelength needs (the board cannot be
+%   derived from the wavelength then). A channel that pins neither falls back to
+%   get_slm's wavelength mapping, so an unpinned rig behaves exactly as before.
 %
 %   Paths: this checkout is added by deriving it from this file's own location,
 %   so it no longer names one machine's username. The Meadowlark SDK is a
@@ -42,16 +48,13 @@ function start_holo_listener(varargin)
     % '' means "ask the rig" -- resolved below, once holodaq is reachable. An
     % explicit value always wins, so every documented invocation still works.
     p = inputParser;
-    % Wavelengths keeps its historical default here. It decides which SLM boards
-    % get OPENED, and moving that to the rig's opto table has to happen in the
-    % same change that teaches local_signature to report the real board -- see the
-    % note in Scope2KRig above rig.opto. Not this commit.
-    p.addParameter('Wavelengths', [1100 900]);
+    % [] means "take the inventory from the rig's opto table" (local_slm_inventory).
+    % An explicit list still wins, for a machine deliberately opening a subset.
+    p.addParameter('Wavelengths', []);
     p.addParameter('CalibDir', '');
     p.addParameter('Timeout', []);
     p.parse(varargin{:});
     opt = p.Results;
-    wl  = opt.Wavelengths;
 
     % This checkout, wherever it happens to live. Was
     % genpath('C:\Users\holos\Documents\GitHub\holography2k'), which named one
@@ -108,27 +111,25 @@ function start_holo_listener(varargin)
     Setup.SLM.timeout_ms     = timeout_ms;
 
     % SLM objects are created ONCE, because a Meadowlark board cannot safely be
-    % reopened per experiment. So 'Wavelengths' is THIS MACHINE'S SLM INVENTORY,
-    % not the experiment's channel set: a prime's channels are resolved against
-    % it by wavelength (local_resolve_slots), never by position.
-    slm_all = [];
-    for w = wl
-        slm_all = [slm_all, get_slm(w)]; %#ok<AGROW>
-    end
-    assert(numel(slm_all) == numel(wl), 'holo_listener:slmOpenFailed', ...
-        ['Opened %d SLM(s) for %d wavelength(s). get_slm returns nothing for a ' ...
-         'wavelength it\ndoes not know (it handles 900, 1100, 1030, 589, 607), so ' ...
-         'check the set: %s.'], numel(slm_all), numel(wl), mat2str(wl));
+    % reopened per experiment. So this is THIS MACHINE'S SLM INVENTORY, not the
+    % experiment's channel set: a prime's channels are resolved against it by
+    % wavelength (local_resolve_slots), never by position. It is also exactly why
+    % the inventory comes from PERSISTENT rig config rather than from the prime --
+    % it has to exist before the first prime ever arrives.
+    [slm_all, wl, inv_src] = local_slm_inventory(opt.Wavelengths);
+    fprintf('  slm source  : %s\n', inv_src);
 
     % Two wavelengths can map to ONE physical board -- get_slm sends both 1100 and
     % 1030 to board 2. That would drive one SLM with two hologram stacks, each
     % overwriting the other, discovered only as garbage on the sample. Refuse at
-    % startup instead.
+    % startup instead. This is the check that makes pinning slm_board in the rig
+    % file safe, so it applies to a rig-supplied inventory too.
     boards = [slm_all.board_id];
     assert(numel(unique(boards)) == numel(boards), 'holo_listener:sharedBoard', ...
         ['Wavelengths %s resolve to boards %s -- at least two share one board.\n' ...
-         'get_slm maps both 1100 and 1030 to board 2, so that set would drive one ' ...
-         'physical\nSLM with two hologram stacks. Restart with a set that maps 1:1.'], ...
+         'That would drive one physical SLM with two hologram stacks. Give each ' ...
+         'arm its own\nslm_board in the rig file (see ExampleRig''s split-arm ' ...
+         'example), or restart with a\nwavelength set that maps 1:1.'], ...
         mat2str(wl), mat2str(boards));
     fprintf('SLM inventory: %s nm on boards %s.\n', mat2str(wl), mat2str(boards));
 
@@ -167,6 +168,10 @@ function start_holo_listener(varargin)
             %    channel's newest calibration. Position is never assumed.
             slot  = local_resolve_slots(chans, wl);
             slm   = slm_all(slot);
+            % The boards were opened at startup; confirm they are still the ones
+            % the DAQ declares, so a rig-file edit mid-session cannot quietly
+            % point a channel at the wrong physical SLM.
+            local_assert_boards(chans, slm);
             calib = [];
             cname = cell(1, numel(chans));
             for k = 1:numel(chans)
@@ -265,7 +270,9 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
 %     3) this listener's own inventory -- the pre-existing behaviour, used only
 %                             when the prime carries neither. Least safe, so it
 %                             is labelled as a guess.
-    chans = struct('name', {}, 'wavelength', {});
+    % slm_board is in the field set so every branch produces the same shape --
+    % local_signature reads it unconditionally.
+    chans = struct('name', {}, 'wavelength', {}, 'slm_board', {});
     source = '';
 
     if isstruct(prime) && isfield(prime, 'opto') && ~isempty(prime.opto)
@@ -273,6 +280,10 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
         for i = 1:numel(t)
             chans(i).name = char(local_field(t(i), 'name', sprintf('ch%d', i)));
             chans(i).wavelength = double(local_field(t(i), 'wavelength', NaN));
+            % Carried through so local_signature can report the board the DAQ
+            % DECLARED, which is what the two sides must agree on. Without this the
+            % board never reached the signature and it could only ever say 'auto'.
+            chans(i).slm_board = local_field(t(i), 'slm_board', []);
         end
         source = 'prime.opto';
     elseif isstruct(prime) && isfield(prime, 'wavelengths') && ~isempty(prime.wavelengths)
@@ -280,6 +291,7 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
         for i = 1:numel(w)
             chans(i).name = sprintf('%dnm', w(i));
             chans(i).wavelength = w(i);
+            chans(i).slm_board = [];   % not declared: 'auto', same as the DAQ sends
         end
         source = 'prime.wavelengths';
     else
@@ -287,6 +299,7 @@ function [chans, source] = local_prime_channels(prime, inventory_wl)
         for i = 1:numel(w)
             chans(i).name = sprintf('%dnm', w(i));
             chans(i).wavelength = w(i);
+            chans(i).slm_board = [];
         end
         source = 'this listener''s inventory (prime carried no channel info)';
     end
@@ -399,6 +412,129 @@ function local_declare(comm, prime, ok, message, chans, source, cnames)
     end
 end
 
+function [slm_all, inv_wl, src] = local_slm_inventory(explicit_wl)
+%LOCAL_SLM_INVENTORY Open this machine's SLMs, once, from the rig's opto table.
+%   Three sources, best first:
+%     1) an explicit 'Wavelengths' argument -- legacy get_slm mapping, for a
+%        machine deliberately opening a subset;
+%     2) the rig's opto table from config/rig -- each channel's slm_board and
+%        slm_lut used verbatim when it declares them, else get_slm for that
+%        wavelength;
+%     3) the historical [1100 900], when the broker is cold and no rig is around.
+%
+%   Board/LUT must come from PERSISTENT config, not from a prime: the boards are
+%   opened here, once, before any prime exists, because a Meadowlark board cannot
+%   safely be reopened per experiment.
+%
+%   get_slm is retained (not renamed) as the per-wavelength fallback -- it is
+%   still the right answer for a channel that declares no board, and it has four
+%   other callers (single_slm_patch, get_psf_v2, calibrate_DE_powermeter,
+%   MsocketHolorequest2K) that have no reason to change.
+    if ~isempty(explicit_wl)
+        inv_wl = reshape(double(explicit_wl), 1, []);
+        slm_all = local_open_by_wavelength(inv_wl);
+        src = 'explicit Wavelengths argument (legacy get_slm mapping)';
+        return
+    end
+
+    t = [];
+    try, t = rig_remote_get('opto'); catch, end
+
+    if isempty(t)
+        inv_wl = [1100 900];
+        slm_all = local_open_by_wavelength(inv_wl);
+        src = 'historical default [1100 900] -- nothing published, run publish_rig_config on the DAQ';
+        return
+    end
+
+    lut_dir = local_cfg([], 'paths.slm_lut_dir', ...
+        'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files');
+
+    inv_wl  = zeros(1, numel(t));
+    slm_all = [];
+    pinned  = 0;
+    for i = 1:numel(t)
+        wl_i  = double(t(i).wavelength);
+        inv_wl(i) = wl_i;
+        board = t(i).slm_board;
+        lut   = char(t(i).slm_lut);
+
+        if isempty(board) || isempty(lut)
+            % Channel declares no board/LUT: derive both from the wavelength, the
+            % behaviour every rig had before this was configurable.
+            slm_all = [slm_all, local_open_by_wavelength(wl_i)]; %#ok<AGROW>
+            continue
+        end
+        if ~local_is_abs(lut)
+            lut = fullfile(lut_dir, lut);
+        end
+        if exist(lut, 'file') ~= 2
+            error('holo_listener:noLut', ...
+                ['Channel ''%s'' (%d nm) declares LUT\n  %s\nwhich does not ' ...
+                 'exist. Fix slm_lut for that opto channel in the rig file and\n' ...
+                 're-run publish_rig_config() on the DAQ.'], ...
+                char(t(i).name), wl_i, lut);
+        end
+        slm_all = [slm_all, MeadowlarkOneK(double(board), lut)]; %#ok<AGROW>
+        pinned  = pinned + 1;
+        fprintf('Loaded %dnm SLM (board %d, pinned by the rig).\n', wl_i, board);
+    end
+
+    src = sprintf('config/rig opto table (%d of %d channels pin a board)', ...
+        pinned, numel(t));
+end
+
+
+function slm = local_open_by_wavelength(wls)
+%LOCAL_OPEN_BY_WAVELENGTH The legacy get_slm switch, with a usable error.
+    slm = [];
+    for w = reshape(double(wls), 1, [])
+        try
+            s = get_slm(w);
+        catch err
+            error('holo_listener:slmOpenFailed', ...
+                ['get_slm(%d) failed: %s\nIt only knows 900, 1100, 1030, 589 and ' ...
+                 '607. For any other wavelength, declare slm_board and slm_lut on ' ...
+                 'that\nopto channel in the rig file instead of relying on this ' ...
+                 'mapping.'], w, err.message);
+        end
+        assert(~isempty(s) && isscalar(s), 'holo_listener:slmOpenFailed', ...
+            ['get_slm(%d) returned nothing. It only knows 900, 1100, 1030, 589 ' ...
+             'and 607.\nDeclare slm_board and slm_lut on that opto channel in the ' ...
+             'rig file instead.'], w);
+        slm = [slm, s]; %#ok<AGROW>
+    end
+end
+
+
+function tf = local_is_abs(p)
+%LOCAL_IS_ABS Windows-style absolute path test (drive letter or UNC).
+    p = char(p);
+    tf = ~isempty(regexp(p, '^([A-Za-z]:[\\/]|\\\\)', 'once'));
+end
+
+
+function local_assert_boards(chans, slm)
+%LOCAL_ASSERT_BOARDS The opened board must be the one the DAQ declared.
+%   Only checks channels that actually declare a board. A mismatch means the rig
+%   file changed after this listener opened its boards, so the fix is a restart --
+%   the alternative is driving the wrong physical SLM.
+    for k = 1:numel(chans)
+        want = chans(k).slm_board;
+        if isempty(want)
+            continue
+        end
+        got = slm(k).board_id;
+        assert(double(want) == double(got), 'holo_listener:boardMismatch', ...
+            ['Channel ''%s'' (%d nm) is declared on SLM board %d, but this ' ...
+             'listener opened board %d\nfor that wavelength. The rig file changed ' ...
+             'since startup; restart this listener.\nRefusing to run rather than ' ...
+             'drive the wrong SLM.'], ...
+            chans(k).name, chans(k).wavelength, double(want), double(got));
+    end
+end
+
+
 function [v, src] = local_cfg(explicit, rig_path, fallback)
 %LOCAL_CFG One config value: an explicit argument, else the rig, else a literal.
 %   Returns the value and a short string naming where it came from, so the
@@ -423,17 +559,36 @@ end
 
 function sig = local_signature(chans)
 %LOCAL_SIGNATURE Must match holodaq's opto_signature for the same table.
-%   Duplicated rather than shared because this file runs on the holography
-%   computer, which does not have holodaq's rigs/ on its path. Format:
-%   name@wavelength#board, joined by '|'. Board is 'auto' here: this side
-%   resolves the board from the wavelength, so it has nothing else to report.
+%   Format: name@wavelength#board, joined by '|'.
+%
+%   The board reported is the one the DAQ DECLARED (the prime's slm_board), not
+%   the one this machine happened to open. That distinction is the whole point:
+%   the signature is an agreement about the DECLARATION, so both sides compute it
+%   from the same input and get the same string. Whether the opened hardware
+%   matches the declaration is a separate check (local_assert_boards).
+%
+%   This used to hardcode '#auto'. That was correct only while no rig pinned a
+%   board -- the moment one did, opto_signature emitted '#<board>' here while this
+%   side still said '#auto', the exact-match test in
+%   Experiment.confirm_opto_agreement failed, and every run fell through to the
+%   weak wavelength-only branch printing "the signatures differ by name only".
+%   That silently downgraded the check whose entire job is to stop a beam being
+%   steered by the wrong phase mask.
+%
+%   Kept duplicated rather than calling opto_signature because this file must run
+%   on a machine that has no rig file; the two implementations have to stay in
+%   step, so the 'auto' convention is spelled out identically in both.
     if isempty(chans)
         sig = 'none';
         return
     end
     parts = cell(1, numel(chans));
     for i = 1:numel(chans)
-        parts{i} = sprintf('%s@%d#auto', chans(i).name, chans(i).wavelength);
+        board = 'auto';
+        if isfield(chans, 'slm_board') && ~isempty(chans(i).slm_board)
+            board = sprintf('%d', double(chans(i).slm_board));
+        end
+        parts{i} = sprintf('%s@%d#%s', chans(i).name, chans(i).wavelength, board);
     end
     sig = strjoin(parts, '|');
 end
