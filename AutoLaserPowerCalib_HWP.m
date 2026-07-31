@@ -1,7 +1,9 @@
 %% What is tthe rep rate?
 
-addpath(genpath('C:\Users\holos\Documents\GitHub'))
-addpath(genpath('C:\Users\holos\Documents\_code'))
+% Put this checkout and its holodaq on the path. Replaces three hardcoded
+% addpaths naming one machine's username; see holo_paths.
+addpath(fileparts(mfilename('fullpath')), '-end');
+holo_paths();
 
 clear
 clc
@@ -14,7 +16,17 @@ aom = 0.30;
 
 gate = 'uni';%'uni'; % or none or normal?
 
-save_base = 'C:\Users\holos\Documents\power-calibrations\';
+% Where the power->angle LUTs go. From the rig so another scope needs no edit
+% here; the literal is the fallback, so this rig behaves identically.
+try
+    save_base = rig_remote_get('paths.power_calib_dir', ...
+        'C:\Users\holos\Documents\power-calibrations');
+catch
+    save_base = 'C:\Users\holos\Documents\power-calibrations';
+end
+if ~isfolder(save_base)
+    mkdir(save_base);
+end
 
 %% start visa thing (older matlabs)
 
@@ -31,13 +43,13 @@ tpm.set_timeout(3+1.1*nsamplesPM*3/1000);
 
 dq = daq('ni');
 
-s = serialport("COM5", ...
-    9600,...
-    'ByteOrder', 'big-endian',...
-    'Parity', 'none',...
-    'StopBits', 1,...
-    'DataBits', 8);
-s.configureTerminator('CR/LF');
+% The rotator bus, from rig.serial.hwp. open_serial applies every field
+% (ByteOrder/Parity/StopBits/DataBits) and the terminator, so this is the same
+% device config as before with the port no longer hardcoded.
+hwp_cfg = struct('port', 'COM5', 'baud', 9600, 'byte_order', 'big-endian', ...
+    'parity', 'none', 'stop_bits', 1, 'data_bits', 8, 'terminator', 'CR/LF');
+try, load_rig(); catch, end
+s = open_serial(rig_get('serial.hwp', hwp_cfg));
 
 switch wavelength
     case 900

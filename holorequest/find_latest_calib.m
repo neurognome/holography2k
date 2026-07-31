@@ -9,7 +9,14 @@ function c = find_latest_calib(wavelength, calib_dir)
 %   c = FIND_LATEST_CALIB(wavelength, calib_dir) overrides the folder.
 
     if nargin < 2 || isempty(calib_dir)
-        calib_dir = 'C:\Users\holos\Documents\calibs';
+        % The rig's folder, via the config the DAQ published (this machine has no
+        % rig file). The literal is the last-resort fallback, not the default.
+        try
+            calib_dir = rig_remote_get('paths.calib_dir', ...
+                'C:\Users\holos\Documents\calibs');
+        catch
+            calib_dir = 'C:\Users\holos\Documents\calibs';
+        end
     end
 
     files = dir(fullfile(calib_dir, sprintf('*_Calib_%d*.mat', wavelength)));

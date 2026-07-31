@@ -986,7 +986,17 @@ tSave = tic;
 save(fullfile(pathToUse,[date '_Calib_' num2str(calibration_wavelength) '.mat']),'CoC')
 save(fullfile(pathToUse,'ActiveCalib.mat'),'CoC')
 
-pth = 'C:\Users\holos\Documents\calibs';
+% THE folder find_latest_calib reads from, so it must come from the same rig value
+% the listener resolves -- repointing only the read side would leave a fresh
+% calibration written somewhere nothing loads it from.
+try
+    pth = rig_remote_get('paths.calib_dir', 'C:\Users\holos\Documents\calibs');
+catch
+    pth = 'C:\Users\holos\Documents\calibs';
+end
+if ~isfolder(pth)
+    mkdir(pth);
+end
 save(fullfile(pth,[date '_Calib_' num2str(calibration_wavelength) '.mat']),'CoC')
 save(fullfile(pth,'ActiveCalib.mat'),'CoC')
 save(fullfile(pth,['CalibWorkspace_' num2str(calibration_wavelength) '.mat']), '-v7.3');

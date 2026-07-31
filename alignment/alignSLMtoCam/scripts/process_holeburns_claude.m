@@ -33,7 +33,17 @@
 comm.send('end', 'si');
 
 tLoad = tic;
-pth = 'K:\Calib\Temp3';
+% Holeburn .tif folder, from the rig. NOTE the file-moving block above is
+% commented out, so this flow reads whatever is already staged here rather than
+% copying it off the ScanImage drive first.
+try
+    pth = rig_remote_get('paths.holo_scratch', 'K:\Calib\Temp3');
+catch
+    pth = 'K:\Calib\Temp3';
+end
+assert(isfolder(pth), 'process_holeburns:noScratch', ...
+    ['Holeburn folder does not exist:\n  %s\nSet paths.holo_scratch in the rig ' ...
+     'file and re-run publish_rig_config() on the DAQ.'], pth);
 files = dir(sprintf('%s\\*.tif', pth));
 
 % can we guess the bad one?

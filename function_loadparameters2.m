@@ -108,9 +108,21 @@ Setup.source = sqrt(Setup.intensity)*(1/(Setup.Nx* Setup.Ny))*ones(Setup.Nx, Set
 Setup.Datapath = 'Calib_Data';
 Setup.Displaypath = 'Calib_Displays';
 
-Setup.Sutterport = 'COM3';%'COM6'
+% Sutter port from the rig (rig.serial.sutter). Read by function_Sutter_Start.
+try
+    Setup.Sutterport = rig_remote_get('serial.sutter.port', 'COM3');
+catch
+    Setup.Sutterport = 'COM3';
+end
 
-Setup.Holorequestpath = '\\adesnik2.ist.berkeley.edu\inhibition\holography\FrankenRig\HoloRequest\';
+% holoRequest folder from the rig. The literal below is the UNC form of the same
+% share the rig file records as a mapped drive; consumed by generate_holograms*.
+try
+    Setup.Holorequestpath = rig_remote_get('paths.holo_request', ...
+        '\\adesnik2.ist.berkeley.edu\inhibition\holography\FrankenRig\HoloRequest\');
+catch
+    Setup.Holorequestpath = '\\adesnik2.ist.berkeley.edu\inhibition\holography\FrankenRig\HoloRequest\';
+end
 
 end
 
