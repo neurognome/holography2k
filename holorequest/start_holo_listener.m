@@ -146,7 +146,13 @@ function start_holo_listener(varargin)
     end
     fprintf('Holo listener up; waiting for a prime from the DAQ...\n');
     while true
-        prime = comm.get_config();
+        % scan_config, not get_config: get_config is io.read, which busy-waits up
+        % to 30 s in a loop with no pause, so with no prime posted it hammered
+        % /config/holo continuously and buried the broker log in 404s. This loop
+        % already paces itself with the pause below, and one non-blocking read per
+        % 0.25 s is all it needs. Same topic, same decode -- and it is what the
+        % rest of this file already uses.
+        prime = comm.scan_config('holo');
         if ~local_is_new(prime, last_seq)
             pause(0.25);
             continue
