@@ -12,7 +12,17 @@ wavelength = 1030; % 900, 1100, 1030
 used_khz = 1250;
 gate = 'uni';%'uni'; % or none or normal?
 
-save_base = 'C:\Users\holos\Documents\power-calibrations\';
+% Where the power->angle LUTs go. From the rig so another scope needs no edit
+% here; the literal is the fallback, so this rig behaves identically.
+try
+    save_base = rig_remote_get('paths.power_calib_dir', ...
+        'C:\Users\holos\Documents\power-calibrations');
+catch
+    save_base = 'C:\Users\holos\Documents\power-calibrations';
+end
+if ~isfolder(save_base)
+    mkdir(save_base);
+end
 
 %% start visa thing (older matlabs)
 % note: use instrhwinfo to find the correct dev
