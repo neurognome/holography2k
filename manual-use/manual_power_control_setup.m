@@ -20,12 +20,18 @@ dq.Rate = rig_get('daq.rate', 20000);
 fprintf('OK.\n')
 
 fprintf('Making SerialPort object... ')
-% The rotator bus, from rig.serial.hwp. open_serial applies every field
-% (ByteOrder/Parity/StopBits/DataBits) and the terminator, so this is the same
-% device config as before with the port no longer hardcoded.
-hwp_cfg = struct('port', 'COM5', 'baud', 9600, 'byte_order', 'big-endian', ...
+% The rotator bus. Resolved via a module's 'serial' field, the same way
+% PowerControllerCalibrated does it (PowerControllerCalibrated.m:242-244), rather
+% than naming a bus here. This used to name rig.serial.hwp directly, which had
+% drifted to a stale COM5 while the GUI drove these very same rotators on
+% rig.serial.ell14 (COM4): one physical bus, two declarations, only one maintained.
+% All three channels below share this one bus, so fpc_1100 stands for it.
+%
+% NOTE the bus is exclusive -- close ScopeController before running this.
+ell14_cfg = struct('port', 'COM4', 'baud', 9600, 'byte_order', 'big-endian', ...
     'parity', 'none', 'stop_bits', 1, 'data_bits', 8, 'terminator', 'CR/LF');
-s = open_serial(rig_get('serial.hwp', hwp_cfg));
+sname = rig_get('modules.fpc_1100.serial', 'ell14');
+s = open_serial(rig_get(['serial.' sname], ell14_cfg));
 fprintf('OK.\n')
 %%
 
@@ -59,16 +65,23 @@ for c = {'900', cal_900; '1100', cal_1100; '1030', cal_1030}'
 end
 
 %initalize contact
+% Rotator addresses from the rig too, so the GUI and this script agree on which
+% channel is which laser. Literals are the fallback and are what this file has
+% always used; fpc_1030 has no module in Scope2KRig, so 3 stands.
+ch_900  = rig_get('modules.fpc_900.ell14_channel',  1);
+ch_1100 = rig_get('modules.fpc_1100.ell14_channel', 2);
+ch_1030 = rig_get('modules.fpc_1030.ell14_channel', 3);
+
 fpc_900 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line5'), 'Shutter 900'),...
-    ELL14(SerialInterface(s), 1, '_Power 900'),...
+    ELL14(SerialInterface(s), ch_900, '_Power 900'),...
     cal_900);
 
 fpc_1100 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line4'), 'Shutter 1100'),...
-    ELL14(SerialInterface(s), 2, 'Power 1100'),...
+    ELL14(SerialInterface(s), ch_1100, 'Power 1100'),...
     cal_1100);
 
 fpc_1030 = FiberPowerControl(Output(DAQOutput(dq, 'port0/line6'), 'Shutter 1030'),...
-    ELL14(SerialInterface(s), 3, 'Power 1030'),...
+    ELL14(SerialInterface(s), ch_1030, 'Power 1030'),...
     cal_1030);
 
 fpc_900.initialize();

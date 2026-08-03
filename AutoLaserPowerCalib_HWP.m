@@ -43,29 +43,44 @@ avg_time_s = nsamplesPM/1000;
 
 dq = daq('ni');
 
-% The rotator bus, from rig.serial.hwp. open_serial applies every field
-% (ByteOrder/Parity/StopBits/DataBits) and the terminator, so this is the same
-% device config as before with the port no longer hardcoded.
-hwp_cfg = struct('port', 'COM5', 'baud', 9600, 'byte_order', 'big-endian', ...
-    'parity', 'none', 'stop_bits', 1, 'data_bits', 8, 'terminator', 'CR/LF');
+% Load the rig BEFORE anything reads it: a rig_get above this line silently
+% returns its fallback.
 try, load_rig(); catch, end
-s = open_serial(rig_get('serial.hwp', hwp_cfg));
 
+% The rotator bus. Resolved the way PowerControllerCalibrated does it
+% (PowerControllerCalibrated.m:242-244) -- via the module's 'serial' field --
+% rather than naming a bus here. This script used to name rig.serial.hwp directly,
+% which had drifted to a stale COM5 while the GUI drove these very same rotators on
+% rig.serial.ell14 (COM4): one physical bus, two declarations, and only the GUI's
+% was maintained. Going through the module means the two cannot disagree again.
+%
+% NOTE the bus is exclusive. ScopeController / PowerControllerCalibrated holds it
+% open, along with the shutter line below, so close that GUI before running this.
+ell14_cfg = struct('port', 'COM4', 'baud', 9600, 'byte_order', 'big-endian', ...
+    'parity', 'none', 'stop_bits', 1, 'data_bits', 8, 'terminator', 'CR/LF');
+sname = rig_get(sprintf('modules.fpc_%d.serial', wavelength), 'ell14');
+s = open_serial(rig_get(['serial.' sname], ell14_cfg));
+
+% Shutter line and rotator address per laser. The literals are the fallback and are
+% what this script has always used; the rig wins wherever it declares the module
+% (Scope2KRig declares fpc_900 and fpc_1100, but not fpc_1030).
 switch wavelength
     case 900
-        dq.addoutput('Dev1', 'port0/line5', 'Digital'); % 0/5: 920, 0/6: 1100
-        hwp = ELL14(SerialInterface(s), 1, 'hwp'); % 0: 900, 1:1100 % might need both? idk
+        shutter_line = 'port0/line5'; default_ch = 1;
     case 1100
-        dq.addoutput('Dev1', 'port0/line4', 'Digital'); % 0/5: 920, 0/6: 1100
-        % This branch never built the rotator, so hwp.set(0) below died on the very
-        % wavelength this script defaults to. Channel 2 is what every other 1100
-        % call site uses (AutoLaserPowerCalib_EOM, manual_power_control_setup,
-        % alignCodeDAQ2K, and holodaq's rig.modules.fpc_1100.ell14_channel).
-        hwp = ELL14(SerialInterface(s), 2, 'hwp');
+        shutter_line = 'port0/line4'; default_ch = 2;
     case 1030
-        dq.addoutput('Dev1', 'port0/line6', 'Digital');
-        hwp = ELL14(SerialInterface(s), 3, 'hwp');
+        shutter_line = 'port0/line6'; default_ch = 3;
+    otherwise
+        error('AutoLaserPowerCalib_HWP:badWavelength', ...
+            'No shutter/rotator mapping for %dnm (900, 1100, 1030).', wavelength);
 end
+dq.addoutput('Dev1', ...
+    rig_get(sprintf('modules.fpc_%d.shutter', wavelength), shutter_line), 'Digital');
+% The 1100 branch never built this at all, so hwp.set(0) below died on the very
+% wavelength this script defaults to.
+hwp = ELL14(SerialInterface(s), ...
+    rig_get(sprintf('modules.fpc_%d.ell14_channel', wavelength), default_ch), 'hwp');
 tpm = get_power_meter(wavelength);
 tpm.setAverageTime(avg_time_s);                        % SECONDS
 tpm.setTimeout(1000 * (3 + 1.1*nsamplesPM*3/1000));    % MILLISECONDS
