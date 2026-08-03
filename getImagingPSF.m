@@ -35,11 +35,25 @@ disp('communication from Master To SI Established');
 
 %% Setup
 baseName = '''calib''';
+
+% Where ScanImage stages these tiffs, ON THE SI COMPUTER. Derived from the rig's
+% si_root (the SI tiff drive) instead of the literal 'D:\Calib\Temp' that was
+% inlined twice below -- another scope changes one rig field rather than editing
+% this script in two places. The literal is the fallback, so this rig is
+% unchanged. Backslashes matter: this string is injected into a ScanImage command
+% that runs on the Windows SI box.
+try
+    si_root = rig_remote_get('paths.si_root', 'D:');
+catch
+    si_root = 'D:';
+end
+si_calib_tmp = fullfile(si_root, 'Calib', 'Temp');
+
 mssend(SISocket,'hSI.hStackManager.enable = 0 ;');
 
 mssend(SISocket,'hSI.extTrigEnable = 0;'); %savign
 mssend(SISocket,'hSI.hChannels.loggingEnable = 1;'); %savign
-mssend(SISocket,'hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';');
+mssend(SISocket,['hSI.hScan2D.logFilePath = ''' si_calib_tmp ''';']);
 mssend(SISocket,['hSI.hScan2D.logFileStem = ' baseName ';']);
 mssend(SISocket,'hSI.hScan2D.logFileCounter = 1;');
 
@@ -92,8 +106,13 @@ disp('Moving files')
 tMov = tic;
 
 %on ScanImage Computer
+% PER-SESSION value, deliberately still a literal: the folder name carries the
+% date of the alignment it belongs to, so it is an operator choice per run, not
+% rig configuration. Edit it when you run this. (A rig field here would suggest
+% one fixed answer, which is what it must not be.)
 destination = '''K:\objective_test\new_alignment_15Aug2023''';
-source = '''D:\Calib\Temp\calib*''';
+% Same staging folder set above, from the rig -- not a second literal.
+source = ['''' fullfile(si_calib_tmp, 'calib*') ''''];
 
 %clear invar
 invar = msrecv(SISocket,0.01);

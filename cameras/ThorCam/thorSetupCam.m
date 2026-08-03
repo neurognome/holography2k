@@ -11,8 +11,17 @@ end
 
 % Load TLCamera DotNet assembly. The assembly .dll is assumed to be in the
 % same folder as the scripts.
-oldLoc = cd; 
-cam_path = 'C:\Users\Holography\Desktop\holography\ThorCam\';
+oldLoc = cd;
+% THIS folder -- the .dll's live beside this file (see the vendored
+% Thorlabs.TSI.*.dll here, and 'Copy 64-bit DotNet managed libraries here.txt'),
+% which is exactly what the comment above says. It used to be the literal
+% 'C:\Users\Holography\Desktop\holography\ThorCam\': a different machine's
+% username AND a copy outside any checkout, so on the current holography computer
+% this cd already failed and the camera could not be opened at all.
+%
+% No rig field for this one on purpose: the assemblies are vendored in the repo,
+% so the checkout's own location is the correct and fully portable answer.
+cam_path = [fileparts(mfilename('fullpath')) filesep];
 pause(0.1)
 cd(cam_path);
 NET.addAssembly([cam_path, 'Thorlabs.TSI.TLCamera.dll']);
