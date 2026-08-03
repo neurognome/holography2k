@@ -1,4 +1,19 @@
 %clear; clc
+
+% This repo, its holodaq, msocket and the SLM SDK. Replaces the two literals that
+% used to sit further down (this checkout's path, and one machine's Desktop
+% meadowlark folder) -- makePaths now takes the SDK folder from
+% rig.paths.slm_sdk, so the SDK on the path is the same one
+% start_holo_listener uses. It also cd's to the repo root, which is harmless
+% here: nothing below opens a relative path.
+%
+% HOISTED to the top. It used to run after HolochatInterface and
+% function_loadparameters2 had already been called, both of which need holodaq
+% and this repo on the path -- so the script only worked in a session something
+% else had set up, and pathing itself did nothing for its first two lines of real
+% work. rig_remote_get below needs holodaq too.
+makePaths();
+
 wavelength = [1100, 900];%[1030];%[1030, 607]; %[900];% 607;%[1100, 900]; %[1100,  900];%[1100, 900];%[1100, 900]; % combinations: 900, 1030, 1100, 900/1100, 900/1030
 
 test_z = false;
@@ -6,14 +21,21 @@ comm = HolochatInterface('holo');
 
 timeout = 1700;
 
-addpath(genpath('C:\Users\holos\Documents\GitHub\holography2k'))
-addpath(genpath('C:\Users\holos\Desktop\meadowlark'))
-
 Setup = function_loadparameters2();
 %Setup = function_loadparameters3(); %FOR YASAP IMAGING
-Setup.CGHMethod = 2; % now defaults to GSS
+% Hologram settings from the rig config the DAQ published, with the same fields
+% and the same fallbacks start_holo_listener uses (2 = GSS, GPU on, 1700 ms), so
+% the listener and this hand-run path cannot disagree about how holograms are
+% compiled. The literals are the fallback, not the default.
+try
+    Setup.CGHMethod = rig_remote_get('holo.cgh_method', 2);
+    Setup.useGPU    = double(logical(rig_remote_get('holo.use_gpu', true)));
+    timeout         = rig_remote_get('holo.slm_timeout_ms', timeout);
+catch
+    Setup.CGHMethod = 2;      % GSS
+    Setup.useGPU    = 1;
+end
 Setup.verbose = 0;
-Setup.useGPU = 1; % now defaults to GPU
 if wavelength == 1030
     %Setup.focal_SLM = .25;
     %Setup.focal_SLM = .2;
@@ -27,26 +49,29 @@ Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 % Setup.calib = 'C:\Users\holos\Documents\calibs\ActiveCalib.mat'; % here we need to somehow feed multiple calibrations?
 
 %%
+% Calibrations now come from find_latest_calib, which is what this switch was
+% replaced by: it takes the folder from rig.paths.calib_dir (via the config the
+% DAQ published, since this machine has no rig file) and picks the NEWEST
+% *_Calib_<nm>*.mat in it. Three things that used to be hand-maintained here are
+% now automatic:
+%   * the folder is no longer one machine's username;
+%   * a fresh calibration is picked up without editing this file, which is the
+%     whole point -- the dated filenames above had to be re-pasted by hand every
+%     time anyone recalibrated;
+%   * the 1030 rmfield of FitX/FitY/FitZ that was commented out here is done by
+%     find_latest_calib's local_clean, so 1030 no longer needs a special case.
+%     For 1030 this resolves to whichever *_Calib_1030*.mat is newest, which
+%     includes the '_DE_calib' variant this switch used to name explicitly.
+%
+% 589 is the one case the wavelength->file rule cannot express: it has no
+% calibration of its own and deliberately borrows 900's.
 calib = [];
 for w = wavelength
-    switch w
-        case 589  % use 900 calibration for now
-            c = importdata('C:\Users\holos\Documents\calibs\01-May-2024_Calib_900.mat');
-        case 607
-            c = importdata('C:\Users\holos\Documents\calibs\21-Oct-2024_Calib_607.mat');
-        case 900
-            c = importdata('C:\Users\holos\Documents\calibs\11-Mar-2026_Calib_900_Nikon16x.mat');
-        case 1100
-            c = importdata ('C:\Users\holos\Documents\calibs\13-Mar-2026_Calib_1100_Nikon16x.mat');
-        case 1030
-            c = importdata ('C:\Users\holos\Documents\calibs\23-Jan-2025_Calib_1030_DE_calib.mat');
-            % idk why it's doing this... but whatever
-            %c = rmfield(c, {'FitX', 'FitY', 'FitZ'});
-
-            %c = importdata ('C:\Users\holos\Documents\calibs\24-Apr-2024_Calib_1030.mat');
-            % c = importdata('C:\Users\holos\Documents\calibs\06-Nov-2023_Calib_1030.mat');
+    lookup = w;
+    if w == 589
+        lookup = 900;   % no 589 calibration exists; 900's is used on purpose
     end
-    calib = [calib, c];
+    calib = [calib, find_latest_calib(lookup)];
 end
 
 sequences = {};

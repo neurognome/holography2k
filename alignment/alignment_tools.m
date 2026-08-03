@@ -1,13 +1,13 @@
 %% run this to setup SLM from scratch...
 
-addpath(genpath('C:\Users\Holography\Documents\MATLAB\msocket\'));
-rmpath(genpath('C:\Users\Holography\Documents\GitHub\SLM-Managment\'));
-addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\New_SLM_Code\'));
-addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\NOVOCGH_Code\'));
-addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\Calib_Data\'));
-addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\IanTestCode\'));
-addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\MSSocket_SLM\'));
-%addpath(genpath('C:\Users\Holography\Desktop\SLM_Management\SLM_MATLAB\'));
+% This repo, its holodaq, msocket and the SLM SDK, all rig-resolved. Replaces a
+% block of literals naming user 'Holography' and the retired 'SLM_Management' tree
+% -- makePaths has carried that same block commented out for exactly that reason.
+% The username alone meant none of it resolved on the current holography computer,
+% and genpath of a missing folder is '' with addpath('') a silent no-op, so this
+% was dead weight rather than working configuration. The rmpath of the old
+% 'SLM-Managment' tree goes too: that path does not exist either.
+makePaths();
 %disp establishing write protocol to master
 disp('done pathing')
 

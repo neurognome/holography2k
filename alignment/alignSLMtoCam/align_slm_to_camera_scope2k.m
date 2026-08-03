@@ -826,7 +826,15 @@ comm.send('hSI.extTrigEnable = 0;', 'si'); %saassvign
 pause(transmission_pause);
 comm.send('hSI.hChannels.loggingEnable = 1;', 'si'); %savign
 pause(transmission_pause);
-comm.send('hSI.hScan2D.logFilePath = ''D:\Calib\Temp'';', 'si');
+% Where ScanImage stages these tiffs, ON THE SI COMPUTER. From the rig's si_root
+% (the SI tiff drive) rather than a 'D:' literal, so another scope changes one rig
+% field. Backslashes matter: this string is executed on the Windows SI box.
+try
+    si_root = rig_remote_get('paths.si_root', 'D:');
+catch
+    si_root = 'D:';
+end
+comm.send(['hSI.hScan2D.logFilePath = ''' fullfile(si_root, 'Calib', 'Temp') ''';'], 'si');
 pause(transmission_pause);
 comm.send(['hSI.hScan2D.logFileStem = ' baseName ';'], 'si');
 pause(transmission_pause);
@@ -979,7 +987,27 @@ disp('Done with Lasers and ScanImage now, you can turn it off')
 process_holeburns_claude
 
 %% Save Output Function
+% A LEGACY MIRROR, not the authoritative location -- that is rig.paths.calib_dir,
+% resolved below as `pth`, which is the folder find_latest_calib reads. This
+% folder is where ActiveCalib.mat has always also been written, and several older
+% scripts here still load it from a Calib_Data folder.
+%
+% It must not be an unconditional literal: `save` into a folder that does not
+% exist ERRORS, so on any scope without this exact path the alignment would run to
+% completion and then die at the save, losing the calibration it just measured.
+% Fall back to the rig's own calib folder, which is guaranteed to be created below.
 pathToUse = 'C:\Users\holos\Documents\SLM_Management\Calib_Data';
+if ~isfolder(pathToUse)
+    try
+        pathToUse = rig_remote_get('paths.calib_dir', 'C:\Users\holos\Documents\calibs');
+    catch
+        pathToUse = 'C:\Users\holos\Documents\calibs';
+    end
+    if ~isfolder(pathToUse)
+        mkdir(pathToUse);
+    end
+    fprintf('Legacy Calib_Data folder absent; mirroring into %s instead.\n', pathToUse);
+end
 disp('Saving...')
 tSave = tic;
 
