@@ -10,11 +10,11 @@ clc
 close all;
 
 % fill this in
-wavelength = 1100; % 900, 1100, 1030
-used_khz = 250;
-aom = 0.30;
+wavelength = 900; % 900, 1100, 1030
+used_khz = 750;
+aom = 1;
 
-gate = 'uni';%'uni'; % or none or normal?
+gate = 'bi';%'uni'; % or none or normal?
 
 % Where the power->angle LUTs go. From the rig so another scope needs no edit
 % here; the literal is the fallback, so this rig behaves identically.
@@ -82,7 +82,7 @@ dq.addoutput('Dev1', ...
 hwp = ELL14(SerialInterface(s), ...
     rig_get(sprintf('modules.fpc_%d.ell14_channel', wavelength), default_ch), 'hwp');
 tpm = get_power_meter(wavelength);
-tpm.setAverageTime(avg_time_s);                        % SECONDS
+%tpm.setAverageTime(avg_time_s);                        % SECONDS
 tpm.setTimeout(1000 * (3 + 1.1*nsamplesPM*3/1000));    % MILLISECONDS
 disp('Devices connected.')
 
