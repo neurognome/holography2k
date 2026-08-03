@@ -29,7 +29,14 @@ Setup.SLM.timeout_ms = timeout;     %No more than 2000 ms until time out
 calibID =1;
 
 % load([Setup.Datapath '\07_XYZ_Calibration.mat']);
-load('C:\Users\Holography\Desktop\SLM_Management\Calib_Data\ActiveCalib.mat','CoC')
+% ActiveCalib.mat from the rig's calib folder, where the alignment writes it --
+% was a literal under user 'Holography' and the retired SLM_Management tree.
+try
+    calib_dir = rig_remote_get('paths.calib_dir', 'C:\Users\holos\Documents\calibs');
+catch
+    calib_dir = 'C:\Users\holos\Documents\calibs';
+end
+load(fullfile(calib_dir, 'ActiveCalib.mat'), 'CoC')
 
 
 [Setup] = function_startBasCam(Setup);
