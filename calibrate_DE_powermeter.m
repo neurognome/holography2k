@@ -65,8 +65,16 @@ slmCoords = [.4, .4, 0, 1];
 slm.feed(Holo);
 
 %% load powermeter reader
-tpm = ThorlabsPowerMeter();
-tpm.set_wavelength(wavelength);
+% get_power_meter owns the listdevices/connect handshake -- the bare constructor
+% only makes a discovery stub, and set_wavelength/read were never real methods.
+tpm = get_power_meter(wavelength);
+
+% One reading up front, purely to populate meterPowerUnit and check it. A head left
+% in dBm returns plausible-looking numbers, and this sweep is ~15 min of them.
+tpm.updateReading(0);
+assert(strcmpi(tpm.meterPowerUnit, 'W'), ...
+    'Meter is reporting %s, not W -- DE_calib.powers must be in watts.', ...
+    tpm.meterPowerUnit);
 
 disp('Turn on FS50, set FS50 parameters to something not crazy (e.g, a few mW)')
 input('Press enter when ready: ')
@@ -92,7 +100,8 @@ for i = 1:numX
             slm.feed(Holo);
             
             pause(.25)
-            pwr = tpm.read();
+            tpm.updateReading(0);   % writes meterPowerReading; returns nothing
+            pwr = tpm.meterPowerReading;   % watts, as DE_calib.powers expects
 
             powers(i, j, k) = pwr;
             
@@ -112,6 +121,7 @@ for i = 1:numX
     end
     i
 end
+tpm.disconnect(); % release the head, so a re-run can connect again
 
 %% save this calibration data:
 

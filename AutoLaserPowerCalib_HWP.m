@@ -28,18 +28,18 @@ if ~isfolder(save_base)
     mkdir(save_base);
 end
 
-%% start visa thing (older matlabs)
-
-tpm  = ThorlabsPowerMeter();
-
 %% Params
-nsamplesPM = 1000; % counts (at 1000 Hopen wavz I think), produces an average
+nsamplesPM = 1000; % counts (at 1000 Hz I think), produces an average
 interStepPause = 0.5; % seconds (0.5 for the fast head)
 
-tpm.set_avg_samples(nsamplesPM);
-tpm.set_timeout(3+1.1*nsamplesPM*3/1000);
+% The meter's averaging window, in seconds -- setAverageTime takes a DURATION, not
+% a sample count. Also the minimum we have to wait after moving the rotator before
+% a reading means anything; see the read in the sweep loop below.
+avg_time_s = nsamplesPM/1000;
 
 %% initialize the thing
+% The power meter is connected after the switch, since connecting needs the
+% wavelength. get_power_meter owns the listdevices/connect handshake.
 
 dq = daq('ni');
 
@@ -55,15 +55,20 @@ switch wavelength
     case 900
         dq.addoutput('Dev1', 'port0/line5', 'Digital'); % 0/5: 920, 0/6: 1100
         hwp = ELL14(SerialInterface(s), 1, 'hwp'); % 0: 900, 1:1100 % might need both? idk
-        tpm.set_wavelength(960);
     case 1100
         dq.addoutput('Dev1', 'port0/line4', 'Digital'); % 0/5: 920, 0/6: 1100
-        tpm.set_wavelength(1100);
+        % This branch never built the rotator, so hwp.set(0) below died on the very
+        % wavelength this script defaults to. Channel 2 is what every other 1100
+        % call site uses (AutoLaserPowerCalib_EOM, manual_power_control_setup,
+        % alignCodeDAQ2K, and holodaq's rig.modules.fpc_1100.ell14_channel).
+        hwp = ELL14(SerialInterface(s), 2, 'hwp');
     case 1030
         dq.addoutput('Dev1', 'port0/line6', 'Digital');
         hwp = ELL14(SerialInterface(s), 3, 'hwp');
-        tpm.set_wavelength(1030);
 end
+tpm = get_power_meter(wavelength);
+tpm.setAverageTime(avg_time_s);                        % SECONDS
+tpm.setTimeout(1000 * (3 + 1.1*nsamplesPM*3/1000));    % MILLISECONDS
 disp('Devices connected.')
 
 %% 
@@ -84,9 +89,18 @@ initial_search_values = zeros(size(initial_search_queries));
 dq.write(1);
 for ii = 1:numel(initial_search_queries)
     hwp.set(initial_search_queries(ii)); % move to deg
-    pause(interStepPause);
 
-    val = tpm.read()   * 1000; % in mW
+    % updateReading measures FIRST and pauses after, so it hands back whatever the
+    % meter has already accumulated -- it does not trigger a fresh averaged read the
+    % way the raw-VISA 'read?' query did. Wait out the rotator settle AND a full
+    % averaging window here, or every point is the previous angle's power.
+    pause(interStepPause + avg_time_s);
+    tpm.updateReading(0);
+    assert(strcmpi(tpm.meterPowerUnit, 'W'), ...
+        'Meter is reporting %s, not W -- the calibration would be garbage.', ...
+        tpm.meterPowerUnit);
+
+    val = tpm.meterPowerReading * 1000; % in mW
     if val < 0
         val = 0;
     end
@@ -94,6 +108,7 @@ for ii = 1:numel(initial_search_queries)
     disp(['Deg: ' num2str(initial_search_queries(ii)) ' Power (mW):  ' num2str(val)])
 end
 dq.write(0);
+tpm.disconnect(); % release the head, so re-running this script can connect again
 
 %% find hi-low
 [max_pwr, max_idx] = max(initial_search_values(3:end-3)); %exclude ends
