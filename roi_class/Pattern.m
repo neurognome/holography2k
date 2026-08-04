@@ -51,9 +51,29 @@ classdef Pattern < matlab.mixin.Copyable
             slm_coords = function_SItoSLM(obj.targets, CoC);
             attenuation_coeffs = max(slm_coords(:, 4), de_floor);
 
+            % powerbias(:) forces a COLUMN, matching slm_coords(:,4) -- the same guard
+            % generate_holograms_new.m already applies when it builds the hologram.
+            % Without it, a row powerbias (which is what calibrated_powerbias,
+            % channel_powerbias and the Pattern constructor's default all return) met a
+            % column `energy` and implicitly expanded into an Nsomething x N OUTER
+            % PRODUCT; the next line's `/sum(...)` then became mrdivide (a least-squares
+            % solve) rather than elementwise. The result was numerically the DE for a
+            % FLAT bias -- i.e. powerbias was silently ignored here, while the hologram
+            % itself applied it correctly. Sequence.calculate_power divides the laser
+            % command by this DE, so calibrated patterns were under-driven: measured
+            % 1.96% at X=1.5 and 3.36% at X=2 on a 5-cell ensemble with attenuation
+            % spread 0.9..0.2. Flat-bias patterns were unaffected, which is why every
+            % uncalibrated experiment looked correct.
+            assert(numel(obj.powerbias) == size(obj.targets, 1), ...
+                'Pattern:powerbiasSize', ...
+                ['powerbias has %d entries for %d targets. They must match -- a ' ...
+                 'mismatch used to expand into an outer product and silently return a ' ...
+                 'meaningless diffraction efficiency.'], ...
+                numel(obj.powerbias), size(obj.targets, 1));
+
             energy = 1./attenuation_coeffs;
-            energy = energy.*obj.powerbias;
-            energy = energy/sum(energy);
+            energy = energy.*obj.powerbias(:);
+            energy = energy./sum(energy);
             obj.diffraction_efficiency = min(sum(energy.*attenuation_coeffs), 1);
         end
     end
