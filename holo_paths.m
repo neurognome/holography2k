@@ -14,10 +14,16 @@ function holo_paths()
 %
 %   Resolution, mirroring holoexpt/holodaq_root.m so there is ONE convention:
 %     this repo : derived from this file's own location
-%     holodaq   : 1) the HOLODAQ_HOME environment variable
-%                 2) a sibling directory named 'holodaq'
-%                 3) the only sibling holding default_setup.m and rigs/load_rig.m
-%                 4) otherwise ERROR with instructions
+%     holodaq   : 1) a sibling directory named 'holodaq'
+%                 2) the only sibling holding default_setup.m and rigs/load_rig.m
+%                 3) otherwise ERROR with instructions
+%
+%   holodaq must be CHECKED OUT BESIDE this repo. There is deliberately no
+%   environment variable to point elsewhere: an env var is invisible in the
+%   checkout, machine-global, and silently wrong once it outlives the path it
+%   names -- and pointing at a stale holodaq means a stale rigs/ layer, i.e. the
+%   wrong physical channel map. A sibling directory you can see is harder to get
+%   wrong than a variable you have to remember you set.
 %
 %   It errors rather than guessing, deliberately. A wrong holodaq means a wrong
 %   rigs/ layer, i.e. the wrong physical channel map -- silently continuing on a
@@ -50,14 +56,6 @@ end
 
 
 function [root, source] = local_holodaq_root(here)
-    env = strtrim(getenv('HOLODAQ_HOME'));
-    if ~isempty(env)
-        root = env;
-        source = 'HOLODAQ_HOME';
-        local_check(root, source);
-        return
-    end
-
     parent = fileparts(here);
 
     named = fullfile(parent, 'holodaq');
@@ -87,13 +85,13 @@ function [root, source] = local_holodaq_root(here)
 
     error('holo_paths:noHolodaq', ...
         ['Could not find the holodaq checkout these scripts need.\n' ...
-         'Looked for: $HOLODAQ_HOME, then a sibling of\n  %s\n' ...
-         'holding default_setup.m and rigs/load_rig.m (found %d).\n\n' ...
-         'Fix either way:\n' ...
-         '  setenv(''HOLODAQ_HOME'', ''<path to holodaq>'')   %% this session\n' ...
-         '  or clone holodaq beside this repo\n' ...
-         'Set it permanently in this machine''s startup.m if the layout is ' ...
-         'unusual.'], here, numel(hits));
+         'Looked beside\n  %s\nfor a directory named ''holodaq'', then for any ' ...
+         'single one holding\ndefault_setup.m and rigs/load_rig.m (found %d).\n\n' ...
+         'Fix: clone holodaq beside this repo.\n' ...
+         '    git clone https://github.com/adesnik-lab/holodaq\n\n' ...
+         'There is no environment variable for this on purpose -- holodaq has to ' ...
+         'be a\nsibling, so that what this code loads is something you can see in ' ...
+         'the folder\nrather than something a machine remembers.'], here, numel(hits));
 end
 
 
@@ -101,13 +99,4 @@ function tf = local_is_holodaq(p)
     tf = isfolder(p) ...
         && isfile(fullfile(p, 'default_setup.m')) ...
         && isfile(fullfile(p, 'rigs', 'load_rig.m'));
-end
-
-
-function local_check(root, source)
-    if ~local_is_holodaq(root)
-        error('holo_paths:badHolodaq', ...
-            ['%s points at\n  %s\nwhich does not look like a holodaq checkout ' ...
-             '(no default_setup.m and rigs/load_rig.m).'], source, root);
-    end
 end
