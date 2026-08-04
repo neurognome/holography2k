@@ -21,16 +21,28 @@ Dependency direction is one-way: this repo uses holodaq, never the reverse.
 ## Getting on the path — read this first
 
 Every hand-run script here starts with `makePaths()` or `holo_paths()`. Both need
-**holodaq findable from this machine**, and both now *error* rather than continue
-if it is not:
+**holodaq checked out beside this repo**, and both *error* rather than continue if
+it is not:
 
-```matlab
-setenv('HOLODAQ_HOME', 'C:\Users\<you>\Documents\GitHub\holodaq')
+```
+Documents/GitHub/
+├── holography2k/     <- this repo
+└── holodaq/          <- must be here
 ```
 
-Resolution order is `$HOLODAQ_HOME`, then a sibling directory named `holodaq`,
-then the only holodaq-shaped sibling, then an error with instructions. Put the
-`setenv` in this machine's `startup.m` if the layout is unusual.
+```bash
+git clone https://github.com/adesnik-lab/holodaq
+```
+
+Resolution is a sibling directory named `holodaq`, then the only holodaq-shaped
+sibling, then an error with instructions.
+
+**There is no environment variable for this, on purpose.** A `HOLODAQ_HOME` used
+to come first and was removed: an env var is invisible in the checkout,
+machine-global, and stays silently wrong the moment it outlives the path it names
+— and pointing at a stale holodaq means a stale `rigs/` layer, which is the wrong
+physical channel map. A sibling directory you can see beats a variable you have to
+remember you set.
 
 The error is deliberate. These scripts used to open a hardcoded trio of
 `addpath(genpath('C:\Users\holos\...'))` naming one machine's username. On any

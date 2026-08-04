@@ -18,7 +18,7 @@ function makePaths()
 %
 %   HOW EACH IS RESOLVED NOW:
 %     this repo + holodaq : holo_paths() -- derived from this file's location,
-%                           holodaq via HOLODAQ_HOME / sibling / error
+%                           holodaq from a sibling checkout, or error
 %     msocket             : a sibling 'msocket' checkout, else the old literal
 %     SLM SDK             : rig.paths.slm_sdk, via the config the DAQ published
 %                           (this machine has no rig file of its own), else the
