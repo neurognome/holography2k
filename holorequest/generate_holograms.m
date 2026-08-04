@@ -14,6 +14,38 @@ end
 disp('new File Detected - running HoloRequest')
 holoRequest = HRin;
 
+% This is the LEGACY path: it weights targets by holoRequest.roiWeights and never looks
+% at Pattern.powerbias. A calibrated experiment (activation_calibrated,
+% bidirectional_calibrated, power_matrix_multiple_power, power_screen_graded) puts its
+% per-target power ratios in powerbias, so running one through here silently delivers
+% FLAT power to every target -- the commanded fold-change X would be meaningless while
+% everything still appeared to work. generate_holograms_new is the powerbias-aware path
+% and is what start_holo_listener and MsocketHolorequest2K use; SingleHolorequest2K still
+% reaches this one.
+if isfield(holoRequest, 'patterns') && ~isempty(holoRequest.patterns)
+    try
+        pb_all = [];
+        for ii = 1:numel(holoRequest.patterns)
+            if isfield(holoRequest.patterns(ii), 'powerbias')
+                pb_all = [pb_all; holoRequest.patterns(ii).powerbias(:)]; %#ok<AGROW>
+            end
+        end
+        if ~isempty(pb_all) && any(abs(pb_all - 1) > 1e-9)
+            warning('generate_holograms:ignoresPowerbias', ...
+                ['This holoRequest carries a NON-FLAT Pattern.powerbias (range ' ...
+                 '%.4f..%.4f), but generate_holograms weights by roiWeights and ' ...
+                 'IGNORES powerbias.\nEvery target will get flat power and the ' ...
+                 'commanded fold-change will not be delivered. Use ' ...
+                 'generate_holograms_new (start_holo_listener / ' ...
+                 'MsocketHolorequest2K) for calibrated experiments.'], ...
+                min(pb_all), max(pb_all));
+        end
+    catch err
+        warning('generate_holograms:powerbiasCheckFailed', ...
+            'Could not check powerbias on this request: %s', err.message);
+    end
+end
+
 
 % if ~iscell(holoRequest.rois)
 % holoRequest.rois = {holoRequest.rois};
