@@ -44,7 +44,67 @@ classdef Sequence < handle
     methods
         function obj = Sequence(patterns)
             obj.patterns = arrayfun(@to_struct, patterns);
+            obj.warn_if_ragged_without_dump();
             % obj.equalize_patterns();
+        end
+
+        function warn_if_ragged_without_dump(obj)
+            %WARN_IF_RAGGED_WITHOUT_DUMP  Ragged multi-pattern sequence, dump off = overdrive.
+            %
+            %   ONE laser power is commanded for a whole sequence: calculate_power below
+            %   returns a single scalar and LaserPowerControl.set applies it once per
+            %   trial. So every pattern in the sequence shares it, and a pattern with
+            %   FEWER targets than the largest concentrates that fixed power into fewer
+            %   spots -- overdriving each of them by max_size/this_size.
+            %
+            %   Pattern.zero_order_dump is what corrects it: generate_holograms_new.m
+            %   parks the unrequested remainder in the zero order "so the absolute laser
+            %   power can stay fixed across differently-sized patterns". It DEFAULTS TO
+            %   FALSE (see the Pattern constructor), so a ragged sequence built without
+            %   asking for it is silently mis-dosed.
+            %
+            %   Only a warning: it is legitimate to run this way if the zero order is not
+            %   blocked and you would rather not park power there, or if the sizes differ
+            %   so little that you do not care. But it should never be a surprise.
+            %
+            %   Not an issue BETWEEN sequences -- power_per_cell is per pool entry, so
+            %   each trial can command its own power. Uniform sizes are also fine.
+            if numel(obj.patterns) < 2
+                return
+            end
+
+            sz = arrayfun(@(x) size(x.targets, 1), obj.patterns);
+            if all(sz == sz(1))
+                return                      % uniform: nothing to correct
+            end
+
+            dumped = arrayfun(@(x) isscalar(x.zero_order_dump) && x.zero_order_dump, ...
+                obj.patterns);
+            small = sz < max(sz);           % only patterns below the max are affected
+            if all(dumped(small))
+                return
+            end
+
+            % Once per session: build_opto_stims constructs a Sequence per trial per
+            % channel, so an unguarded warning would print thousands of times.
+            persistent warned
+            if ~isempty(warned)
+                return
+            end
+            warned = true;
+
+            bad = find(small & ~dumped);
+            warning('Sequence:raggedWithoutZeroOrderDump', ...
+                ['This sequence mixes ensemble sizes %s and shares ONE laser power, but ' ...
+                 '%d of its\npatterns have zero_order_dump = FALSE (the Pattern default). ' ...
+                 'Those patterns will be\nOVERDRIVEN by up to %.1fx per cell, because the ' ...
+                 'fixed trial power lands on fewer\ntargets.\n' ...
+                 '  fix:  Pattern(targets, powerbias, true)   %% dump the remainder to zero order\n' ...
+                 '  or:   keep every pattern in a sequence the same size,\n' ...
+                 '  or:   one pattern per trial and vary power_per_cell between trials.\n' ...
+                 'Warned once per session; silence with ' ...
+                 'warning(''off'', ''Sequence:raggedWithoutZeroOrderDump'').'], ...
+                mat2str(sz), numel(bad), max(sz) / min(sz(small)));
         end
 
         function equalize_patterns(obj)
