@@ -25,11 +25,12 @@ classdef StimInfo < matlab.mixin.Copyable
         function warn_if_slm_triggers_merge(obj)
             %WARN_IF_SLM_TRIGGERS_MERGE  Pulses closer than the SLM trigger width.
             %
-            %   SLMComm asks for a trigger of [pulse_start - pre_delay, +0.025 s] per
-            %   pulse, with pre_delay = 0.025. So the trigger for a pulse at t occupies
-            %   [t-0.025, t], and two pulses spaced dt apart give windows that ABUT at
-            %   dt == 0.025 and OVERLAP below it. Either way the digital line never
-            %   returns low, so the SLM sees ONE rising edge instead of two.
+            %   SLMComm asks for a trigger of
+            %   [pulse_start - pre_delay, + SLMComm.trigger_width] per pulse. So two
+            %   pulses spaced dt apart give windows that ABUT at dt == trigger_width and
+            %   OVERLAP below it -- pre_delay shifts both equally and cancels. Either
+            %   way the digital line never returns low, so the SLM sees ONE rising edge
+            %   instead of two.
             %
             %   That matters because PlaySequence2K advances one frame per trigger: with
             %   n pulses merged into one edge it feeds ONE hologram and the rest of the
@@ -38,8 +39,10 @@ classdef StimInfo < matlab.mixin.Copyable
             %   pulse window independently -- so the light still fires on time, at the
             %   WRONG targets. Nothing about that is visible in the saved stim record.
             %
-            %   Measured with the real PulseGenerator: 5 pulses at 0.025 s -> 1 edge;
-            %   10 at 0.020 s -> 1 edge; 5 at 0.026 s -> 5 edges; 8 at 0.2 s -> 8.
+            %   Measured with the real PulseGenerator back when trigger_width was
+            %   0.025: 5 pulses at 0.025 s -> 1 edge; 10 at 0.020 s -> 1 edge; 5 at
+            %   0.026 s -> 5 edges; 8 at 0.2 s -> 8. At the current 0.005 the same
+            %   arithmetic applies one fifth of the way down.
             %
             %   Harmless in one case, which is why this warns rather than errors: if the
             %   merged pulses all point at the SAME pattern, the frame that stays on
@@ -50,18 +53,24 @@ classdef StimInfo < matlab.mixin.Copyable
                 return
             end
 
-            pre_delay = 0.025;                 % SLMComm.pre_delay
+            % The floor is the trigger WIDTH, not pre_delay. The trigger for a pulse at
+            % t spans [t - pre_delay, t - pre_delay + width], so shifting both by
+            % pre_delay cancels it: two pulses dt apart abut at dt == width. The two
+            % constants were both 0.025 until the width dropped to 0.005, which is
+            % exactly the sort of coincidence that hides a wrong threshold -- so read
+            % the real one off SLMComm rather than restating it here.
+            width = local_slm_trigger_width();
 
             % Compared with a tolerance, not exactly. The sweep is quantised --
             % Generator.to_samples is round(s * sample_rate) -- so a gap that exceeds
-            % pre_delay by less than a sample period still lands on contiguous samples
+            % the width by less than a sample period still lands on contiguous samples
             % and merges. It also absorbs float noise: a nominal 25 ms gap written as
-            % 0.525 - 0.5 is 0.025000000000000022 in double, which fails a bare <=
-            % while the real PulseGenerator sweep at 20 kHz still produces ONE rising
+            % 0.525 - 0.5 is 0.025000000000000022 in double, which failed a bare <=
+            % while the real PulseGenerator sweep at 20 kHz still produced ONE rising
             % edge (measured). One sample at 10 kHz is 100 us, so that is the bound.
             tol = 1e-4;
             gaps = diff(starts);
-            merged = gaps <= pre_delay + tol;
+            merged = gaps <= width + tol;
             if ~any(merged)
                 return
             end
@@ -86,15 +95,15 @@ classdef StimInfo < matlab.mixin.Copyable
 
             warning('StimInfo:slmTriggersMerge', ...
                 ['%d of %d pulse gaps are <= %g s (min %g s), so their SLM triggers ' ...
-                 'merge into a\nsingle rising edge -- SLMComm sends [t-0.025, t] per ' ...
-                 'pulse. PlaySequence2K advances one\nframe per edge, so the sequence ' ...
+                 'merge into a\nsingle rising edge -- SLMComm holds each trigger ' ...
+                 '%g s. PlaySequence2K advances one\nframe per edge, so the sequence ' ...
                  'slides out of step and later pulses fire on the\nwrong pattern. The ' ...
                  'laser gate is NOT affected, so the light still looks correct.\n' ...
-                 '  fix:  space distinct patterns more than 0.025 s apart, or\n' ...
+                 '  fix:  space distinct patterns more than %g s apart, or\n' ...
                  '  fix:  reuse ONE pattern_id for pulses meant to hit the same target.\n' ...
                  'Warned once per session; silence with ' ...
                  'warning(''off'', ''StimInfo:slmTriggersMerge'').'], ...
-                sum(merged), numel(gaps), pre_delay, min(gaps));
+                sum(merged), numel(gaps), width, min(gaps), width, width);
         end
 
         function out = check_and_equalize(obj, to_check)
@@ -127,4 +136,29 @@ classdef StimInfo < matlab.mixin.Copyable
         %     out = numel(obj.firing_order);
         % end
     end
+end
+
+function w = local_slm_trigger_width()
+%LOCAL_SLM_TRIGGER_WIDTH  SLMComm.trigger_width, or the value it currently holds.
+%   Read from the class when it is on the path -- which it is on any machine that can
+%   actually run a stim -- so shortening the trigger there cannot leave this guard
+%   checking a stale threshold. holography2k does not otherwise depend on holodaq, so
+%   fall back rather than error when it is absent (offline analysis, tests).
+%
+%   Keep the fallback equal to SLMComm.trigger_width.
+    persistent cached
+    if ~isempty(cached)
+        w = cached;
+        return
+    end
+    w = 0.005;
+    try
+        if exist('SLMComm', 'class') == 8
+            w = SLMComm.trigger_width;
+        end
+    catch
+        % older SLMComm without the constant: its width was the hardcoded 0.025
+        w = 0.025;
+    end
+    cached = w;
 end
