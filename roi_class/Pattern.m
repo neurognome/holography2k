@@ -16,7 +16,26 @@ classdef Pattern < matlab.mixin.Copyable
             end
 
             if nargin < 3 || isempty(zero_order_dump)
-                warning('NOT Dumping power into zero order!!')
+                % DEFAULT IS FALSE, and that is only safe when every pattern in a
+                % sequence is the same size: one laser power is commanded per sequence,
+                % so a smaller pattern would otherwise concentrate it into fewer targets.
+                % Sequence checks the real condition (ragged AND more than one pattern)
+                % and warns with the actual overdrive factor -- this one only records
+                % that the default was taken.
+                %
+                % Warned once per session and given an identifier. It used to be a bare
+                % warning() on every construction, which printed hundreds of times per
+                % experiment build, could not be suppressed selectively, and said
+                % nothing about when it actually matters -- so it read as noise.
+                persistent told
+                if isempty(told)
+                    told = true;
+                    warning('Pattern:noZeroOrderDump', ...
+                        ['zero_order_dump defaults to FALSE. Fine when every pattern in ' ...
+                         'a sequence is the\nsame size; pass Pattern(targets, powerbias, ' ...
+                         'true) for a RAGGED sequence, or the\nsmaller patterns are ' ...
+                         'overdriven. Warned once per session.']);
+                end
                 zero_order_dump = false;
             end
             obj.zero_order_dump = zero_order_dump;
