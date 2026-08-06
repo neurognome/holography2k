@@ -809,6 +809,13 @@ for ii = 1:length(zsToBlast)
 end
 transmission_pause = 0.5;
 
+% NOTE these are NOT restored when the script finishes -- see the hand-back notice
+% at the end of the script. They are eval strings executed on the SI machine by
+% AutoCalibSI, and there is no read-back channel, so the prior values cannot be
+% captured from here and therefore cannot be put back. The end-of-script notice
+% lists exactly what was changed so it can be reset by hand; SIReceiver's
+% "ScanImage armed." line reports these at every prime so a forgotten reset is
+% caught rather than silently inherited.
 comm.send(['hSI.hStackManager.arbitraryZs = [' str '];'], 'si');
 pause(transmission_pause);
 comm.send(['hSI.hStackManager.numVolumes = [' num2str(numVol) '];'], 'si');
@@ -1034,6 +1041,31 @@ save(fullfile(pathToUse,'CalibWorkspace_v73.mat'), '-v7.3');
 disp(['Saving took ' num2str(toc(tSave)) 's']);
 
 disp(['All Done, total time from begining was ' num2str(toc(tBegin)) 's. Bye!']);
+
+%% ---- hand back the ScanImage machine ------------------------------------------
+% This script reconfigures ScanImage for hole-burning and does NOT put it back. The
+% next experiment inherits whatever is left here, so say so explicitly rather than
+% letting it be discovered in the data.
+%
+% Why it is not restored automatically: these are eval strings executed on the SI
+% machine by AutoCalibSI, and there is no channel for SI to send values BACK. The
+% prior settings therefore cannot be captured from this script, and "restoring" them
+% to guessed defaults would be worse than leaving them -- especially the beam power.
+%
+% extTrigEnable and loggingEnable are omitted deliberately: SIReceiver.run sets both
+% explicitly on every prime, so those two self-heal.
+fprintf('\n');
+fprintf('=====================================================================\n');
+fprintf(' SCANIMAGE WAS RECONFIGURED AND IS *NOT* RESTORED. Reset by hand:\n');
+fprintf('   hSI.hBeams.powers            -> was set to 15   (your imaging power\n');
+fprintf('                                    is gone; reset it before imaging)\n');
+fprintf('   hSI.hStackManager.enable     -> was set to 1\n');
+fprintf('   hSI.hStackManager.numVolumes -> was set to %d\n', numVol);
+fprintf('   hSI.hStackManager.arbitraryZs-> was set to %d plane(s)\n', numel(zsToBlast));
+fprintf('\n');
+fprintf(' The next prime prints what it armed with ("ScanImage armed. ..."), so\n');
+fprintf(' check that line if you are unsure whether the reset took.\n');
+fprintf('=====================================================================\n');
 
 %% use this to run
 %[SLMXYZP] = function_SItoSLM(SIXYZ,CoC);
