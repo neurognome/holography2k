@@ -47,11 +47,21 @@ function PlaySequence2K(slm, holograms, order)
 
     while ~timeout && any(counter <= (cellfun(@numel, order)'))
         for ii = 1:N
-            % Bound by BOTH the order length and the hologram count. This
-            % checked only the hologram count while indexing order{ii}, so a
-            % channel with a SHORTER firing order kept being fed until the
-            % index ran off its end -- mid-trial, from inside local_serve.
-            if counter(ii) <= numel(order{ii}) && size(holograms{ii}, 3) >= counter(ii)
+            % Bound by BOTH the order length and the hologram count, and the
+            % hologram bound is on the SLICE BEING INDEXED -- order{ii}(counter)
+            % -- not on counter itself. Guarding on counter meant a firing order
+            % LONGER than the hologram stack stopped being fed the moment counter
+            % passed the stack size, even though every id in it was valid: the
+            % SLM then held its last frame for the rest of the trial while the
+            % laser gate kept firing. That is legitimate and common -- reusing
+            % one pattern id for a burst of spikes on one target gives 20 ids
+            % over 4 holograms (spiking_holography_clicked), of which only 4
+            % were ever fed.
+            %
+            % Out-of-range ids are still caught, by the max(order) range check
+            % above, which blanks and returns before any of this.
+            if counter(ii) <= numel(order{ii}) && ...
+                    size(holograms{ii}, 3) >= order{ii}(counter(ii))
                 slm(ii).feed(holograms{ii}(:, :, order{ii}(counter(ii))));
                 counter(ii) = counter(ii) + 1;
             end
