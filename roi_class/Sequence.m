@@ -116,6 +116,38 @@ classdef Sequence < handle
         end
 
         function out = ids(obj)
+            %IDS  The firing order for this sequence: one pattern id per pulse.
+            %
+            %   Checked rather than trusted, because [obj.patterns.id] SILENTLY DROPS
+            %   empty ids -- [1 [] 3] concatenates to [1 3]. Ids are assigned by
+            %   generate_holograms_new on the holo computer and come back through
+            %   transferHR, so an empty one means the holoRequest was never
+            %   round-tripped. The consequences were both invisible:
+            %
+            %     all empty  -> ids is [], PlaySequence2K's loop never runs, nothing is
+            %                   fed, and the SLM holds the PREVIOUS trial's hologram
+            %                   while the laser gate fires this trial's pulses.
+            %     some empty -> a short order that no longer lines up with
+            %                   delay/duration, so the sequence plays offset.
+            %
+            %   Either way the light looks right and the targets are wrong, with
+            %   nothing in the saved stim record to show it. Fail here instead.
+            raw = {obj.patterns.id};
+            missing = cellfun(@isempty, raw);
+            assert(~any(missing), 'Sequence:missingPatternIds', ...
+                ['%d of %d patterns have no id, so the firing order would be sent ' ...
+                 'SHORT (or\nempty) and the SLM would play the wrong holograms. Ids ' ...
+                 'are assigned by\ngenerate_holograms_new and returned by transferHR ' ...
+                 '-- an empty one means this\nholoRequest was never round-tripped ' ...
+                 'through the holography computer.'], ...
+                sum(missing), numel(raw));
+
+            bad = ~cellfun(@(x) isscalar(x) && isnumeric(x), raw);
+            assert(~any(bad), 'Sequence:badPatternIds', ...
+                ['%d of %d pattern ids are not numeric scalars. [patterns.id] would ' ...
+                 'flatten\nthem into a firing order of the wrong length.'], ...
+                sum(bad), numel(raw));
+
             out = [obj.patterns.id];
         end
 
