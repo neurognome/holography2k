@@ -87,8 +87,9 @@ anyone recalibrated.
 ## Layout
 
 ```
-holorequest/     start_holo_listener (the live listener), the holorequest entry
-                 points, find_latest_calib, PlaySequence2K
+holorequest/     start_holo_listener (the live listener), HoloListener (its loop)
+                 and HoloListenerMonitor (its status window), the holorequest
+                 entry points, find_latest_calib, PlaySequence2K
 alignment/       SLM-to-camera alignment, PSF measurement, CoC fitting
   alignSLMtoCam/   align_slm_to_camera_scope2k -> process_holeburns_claude
 cgh/             hologram algorithms (Gerchberg-Saxton and friends)
@@ -97,14 +98,15 @@ cameras/         ThorCam and Basler acquisition (vendor DLLs vendored in-tree)
 roi_class/       Pattern, Sequence
 sutter/          MP285 manipulator control
 manual-use/      manual_slm, manual_power_control_setup
-tests/           bench checks: SLM range, zero-order location, ScanImage bounds
+tests/           bench checks: SLM range, zero-order location, ScanImage bounds,
+                 test_holo_listener_monitor (offline: no rig, no broker, no SLM)
 ```
 
 ## Entry points
 
 | run this | for |
 |---|---|
-| `holorequest/start_holo_listener` | the live listener during an experiment. Prints the config it resolved — read those lines and confirm they are your scope's |
+| `holorequest/start_holo_listener` | the live listener during an experiment. Prints the config it resolved — read those lines and confirm they are your scope's. Async by default, with a **Holo Listener** status window (lamp + Start/Stop). Closing that window stops the listener; `'nogui'` skips it, `'blocking'` is the old Ctrl-C loop |
 | `holorequest/MsocketHolorequest2K` / `SingleHolorequest2K` | hand-run hologram compilation |
 | `alignment/alignSLMtoCam/align_slm_to_camera_scope2k` | the current SLM↔camera alignment |
 | `AutoLaserPowerCalib_HWP` / `_EOM` / `_MOD` | photostim power calibration. `_EOM` is the one for a rig that sets power with a modulator rather than a rotator |
