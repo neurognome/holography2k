@@ -39,6 +39,25 @@ catch
     rig = struct();
 end
 
+% Refuse a rig with no modulator BEFORE touching the meter or the DAQ, so a wrong
+% scope costs an error message rather than an instrument session.
+%
+% There is deliberately no fallback for the modulator output. A default of 'ao1'
+% -- which is what this script used to hardcode -- would be actively dangerous:
+% on Scope2K ao1 is the LASER GATE, so a rig with no modulator channel would
+% silently drive its gate line while the sweeps below ran it from 0 to 5 V.
+assert(rig_has(rig, sprintf('modules.%s', fpc_module)), ...
+    'AutoLaserPowerCalib_EOM:noModulator', ...
+    ['This rig declares no ''%s'' module, so it has no modulator power path and ' ...
+     'there is\nnothing here to calibrate. Rotator (ELL14) channels are ' ...
+     'calibrated by\nAutoLaserPowerCalib_HWP.m instead. If the module is named ' ...
+     'something else on this\nrig, set fpc_module at the top of this file.'], ...
+    fpc_module);
+assert(rig_has(rig, sprintf('modules.%s.output', fpc_module)), ...
+    'AutoLaserPowerCalib_EOM:noOutput', ...
+    ['rig.modules.%s declares no ''output'', so there is no analog line to ' ...
+     'sweep.\nA kind ''eom'' module requires one.'], fpc_module);
+
 % Where the power->volts LUTs go. From the rig so another scope needs no edit
 % here; the literal is the fallback, so this rig behaves identically.
 try
@@ -86,14 +105,14 @@ fopen(v);
 
 dq = daq('ni');
 
-% Device, shutter line and modulator output all come from the rig. This used to
-% be a `switch wavelength` block that hardcoded 'Dev1' and drove **ao1** for the
-% 1030 branch -- on Millennium Phoenix the stim modulator is ao3, and ao1 is the
-% imaging-path Pockels cell, so the old literal calibrated the wrong device. The
-% 900/1100 branches built an ELL14 from an undefined `s`, which cannot be right
-% in a modulator script at all; they are gone.
+% Device, shutter line and modulator output all come from the rig, validated
+% above. This used to be a `switch wavelength` block that hardcoded 'Dev1' and
+% drove **ao1** for the 1030 branch -- on Millennium Phoenix the stim modulator is
+% ao3, and ao1 is the imaging-path Pockels cell, so the old literal calibrated the
+% wrong device. The 900/1100 branches built an ELL14 from an undefined `s`, which
+% cannot be right in a modulator script at all; they are gone.
 dev = rig_get('daq.device', 'Dev1');
-ao_line = rig_get(sprintf('modules.%s.output', fpc_module), 'ao1');
+ao_line = rig_get(sprintf('modules.%s.output', fpc_module));
 
 % Volts that mean DARK on this modulator. NOT 0: on a modulator biased to, say,
 % -0.375 V, 0 V is a step away from dark and on some modulators it is fully
