@@ -7,11 +7,17 @@ target pattern, and the analysis; **this folder is the scope2k side** — Phase 
 beads, plus references and metadata). See the full protocol in
 `~/Downloads/README_AO_bead_calibration.md`.
 
-Detection is on the **Basler alignment camera** (the get_psf_no_power path): the
-holographic grid is the excitation, and the camera images its two-photon
-fluorescence directly, so each spot *is* a PSF on the camera. Laser power is set
-**manually** by the operator (no DAQ power server / no msocket gating) and left
-on for the acquisition, exactly like `get_psf_no_power.m`.
+Detection is on the **Basler alignment camera**: the holographic grid is the
+excitation, and the camera images its two-photon fluorescence directly, so each
+spot *is* a PSF on the camera. Laser power is controlled over **Holochat by the
+DAQ computer** (`alignment/alignCodeDAQ2K.m`), exactly like
+`align_slm_to_camera_scope2k.m`: the hologram is gated **ON only during each
+grab** and OFF in between, which gives a true beam-off background and limits
+bleaching.
+
+`alignCodeDAQ2K` reads the wavelength **once** at startup and then services power
+until it receives `'end'` (which each script sends when it finishes). So
+**restart `alignCodeDAQ2K` on the DAQ before each of the two scripts.**
 
 ## Files
 
@@ -24,21 +30,29 @@ on for the acquisition, exactly like `get_psf_no_power.m`.
 
 ## Run order
 
-1. **Set the laser power by hand** (shutter / rotator / EOM as usual) before
-   running — there is no software power control in these scripts.
+1. **DAQ computer:** run `alignCodeDAQ2K`. It waits for the wavelength, then sets
+   laser power on request and acks each with `'gotit'`. It exits when the script
+   sends `'end'`, so **restart it before each of the two scripts below.**
 2. **Holography computer:** run `slm_pupil_mapping.m` cell-by-cell on the bead
-   slide (its setup cell previews a central spot so you can dial the power to
-   ~80% of camera max). Confirm the four printed parameters look sane. Keep the
-   session open.
-3. Run `acquire_bead_grid_stack.m` cell-by-cell:
+   slide. Its setup cell sends the wavelength to the DAQ and previews a central
+   spot (gated on) so you can tune `pwr` to ~80% of camera max. Confirm the four
+   printed parameters look sane; it saves a `pupil_mapping` `.mat` and sends
+   `'end'`.
+3. **Restart `alignCodeDAQ2K`**, then run `acquire_bead_grid_stack.m` cell-by-cell:
    - preview → find a bead field with beads well separated vs. the grid spacing;
-   - **set-power / no-saturation cell:** raise the laser by hand until the
-     brightest bead is well under the 8-bit ceiling (255 DN); record the mW in
-     `pwr_mW` for the metadata;
+   - **set-power / no-saturation cell:** raise `pwr` until the brightest bead is
+     well under the 8-bit ceiling (255 DN) — the value is recorded in the metadata;
    - verify each grid spot lands on a bead (nudge the grid / coordinate file if
      not — spots off beads measure nothing);
-   - acquire the stack, let the bleaching re-check pass, then it saves.
+   - acquire the stack, let the bleaching re-check pass; it loads the Phase-1
+     summary from the `.mat`, saves, and sends `'end'`.
 4. **Handoff** (see below).
+
+Sutter settle times (`settle_first_s` = 3 s after the big initial jump,
+`settle_step_s` = 0.3 s per step) are tuned to match
+`alignment/alignSLMtoCam/align_slm_to_camera_scope2k.m`. If planes look blurred or
+z-misregistered, the stage is being read before it settles — raise these, don't
+lower them.
 
 ## Two rules that matter for the analysis
 
