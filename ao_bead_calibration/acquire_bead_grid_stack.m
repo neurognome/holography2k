@@ -8,16 +8,16 @@
 % FIXED for the entire sweep -- the SLM phase is the quantity being measured, so
 % defocus must come from the stage, never from the SLM (README item 13).
 %
-% Modeled on get_psf_no_power.m: laser power is set MANUALLY by the operator (no
-% DAQ power server / no msocket gating) and left on for the acquisition.
-% Differences from get_psf_no_power: N-spot grid instead of one spot, SLM fed
-% once and never touched again, and the RAW averaged stack is saved to TIFF (no
-% smoothing / no background subtraction / no clipping) for Genesis's pipeline.
+% Laser power is controlled over Holochat by the DAQ computer, exactly like
+% align_slm_to_camera_scope2k.m: the hologram is gated ON only during each grab
+% and OFF in between. That gives a true beam-off background and limits bleaching.
 %
-% RUN ORDER (see README): set the laser power by hand (shutter/rotator/EOM as
-% usual), then run this script cell-by-cell on the holography computer.
+% RUN ORDER (see README):
+%   1. On the DAQ computer: run alignCodeDAQ2K (it waits for the wavelength, then
+%      services power requests and acks each with 'gotit').
+%   2. Run this script cell-by-cell on the holography computer.
 %
-% Hand-run script (clears the workspace), matching the get_psf_no_power.m style.
+% Hand-run script (clears the workspace), matching the get_psf/align conventions.
 
 clear
 close all
@@ -39,6 +39,10 @@ epoch           = 1;
 gridSource      = [];
 gridOpts        = struct('frame','SLM', 'n',20);
 
+% Per-hologram power in mW, commanded to the DAQ. Set LOW and tune it in the
+% no-saturation cell below so no raw pixel reaches the 8-bit ceiling (255).
+pwr             = 5;                 % mW
+
 % z-sweep: holographic spots have long axial tails -> wide range, fine step.
 UZ              = linspace(-30, 30, 61);   % um about focus, ~1 um step (README item 13)
 nframesCapture  = 10;                       % frames averaged per plane
@@ -50,19 +54,15 @@ nframesCapture  = 10;                       % frames averaged per plane
 settle_first_s  = 3;                         % s, after the large initial jump
 settle_step_s   = 0.3;                        % s, after each small z step
 
-% Power is set MANUALLY (no DAQ control here). Record the mW you dialed in for
-% the metadata handoff -- leave [] and it is flagged NEEDS_INPUT.
-pwr_mW          = [];               % <- fill in the power you set by hand
-
 % Objective / analysis metadata that is NOT knowable from the rig code -- fill
 % these in for the handoff (README item 3 / 15). Left here so they are obvious.
 na              = [];               % objective NA            e.g. 0.8
 objective_mag   = [];               % objective magnification e.g. 16
 pupil_fill      = [];               % pupil-fill fraction     e.g. 0.9
 
-%% ---- hardware setup (mirrors get_psf_no_power.m:1-33) -----------------------
+%% ---- hardware setup ---------------------------------------------------------
 Setup = function_loadparameters2();
-Setup.CGHMethod = 2;                 % Global GS, as in get_psf_no_power
+Setup.CGHMethod = 2;                 % Global GS
 Setup.GSoffset  = 0;
 Setup.verbose   = 0;
 
@@ -80,6 +80,11 @@ sutter = sutterController();
 
 bas = bascam();
 bas.start()
+
+% Power control over Holochat (DAQ computer must be running alignCodeDAQ2K).
+comm = HolochatInterface('holo');
+comm.send(wavelength, 'daq');        % tells the DAQ which laser to calibrate
+comm.flush();
 
 disp('Setup complete.')
 
@@ -99,22 +104,23 @@ figure('Name','Grid reconstruction (FFT of fed hologram)');
 imagesc(abs(fftshift(fft2(exp(1i*double(Holo)/255*2*pi)))));
 axis image; colorbar; title(sprintf('Expect %d spots', nSpots));
 
-%% ---- set power by hand + no-saturation check (README item 11) ---------------
-% Dial the laser power up by hand (shutter/rotator/EOM as usual) while previewing
-% the grid, until the brightest bead is ~80% of camera max and NO raw pixel
-% clips at the 8-bit ceiling (255). This power is used for the whole stack.
-bas.preview()   % close the preview window when the power looks right
+%% ---- set power + no-saturation check (README item 11) -----------------------
+% Preview with the hologram gated ON so you can watch the beads while tuning; then
+% confirm NO raw pixel clips at 255. Adjust `pwr` above and re-run until the
+% brightest bead is ~80% of the ceiling.
+power_gate(comm, pwr/1000);   % beam ON
+bas.preview()                 % close the preview window when the power looks right
+power_gate(comm, 0);          % beam OFF
 
-% Snapshot at the working power and verify no saturation before acquiring.
-raw = bas.grab(nframesCapture);
+raw = grab_gated(comm, bas, pwr/1000, nframesCapture, 'uint8');
 rawmax = max(raw(:));
 frac_sat = mean(raw(:) >= bas.camMax);
 fprintf('Raw camera max = %d / %d (%.3f%% of pixels saturated).\n', ...
     rawmax, bas.camMax, 100*frac_sat);
 if rawmax >= bas.camMax
     warning('acquire_bead_grid:saturated', ...
-        ['Camera is SATURATING at the current power (%d DN). Lower the laser ' ...
-         'power and re-run this cell before acquiring -- clipped data breaks ' ...
+        ['Camera is SATURATING at the current power (%d DN). Lower `pwr` and ' ...
+         're-run this cell before acquiring the stack -- clipped data breaks ' ...
          'phase retrieval and deconvolution.'], rawmax);
 end
 
@@ -122,13 +128,13 @@ figure('Name','Working-power frame'); clf
 imagesc(mean(double(raw),3)); axis image; colorbar
 title(sprintf('max = %d DN  (ceiling %d)', rawmax, bas.camMax));
 
-%% ---- background (beam left on, as in get_psf_no_power) ----------------------
-% NOTE: with manual power there is no beam-off background. This is a same-state
-% reference grab; it is saved for Genesis but NOT subtracted from the raw stack.
-bgd_frames = bas.grab(10);
-bgd = mean(bgd_frames, 3);
+%% ---- beam-off background ----------------------------------------------------
+% True dark frame: the DAQ keeps the beam off (power_gate is not called), so this
+% is real camera/room background. Saved alongside the stack; NOT subtracted from
+% the raw stack.
+bgd = mean(double(bas.grab(10)), 3);
 
-%% ---- acquire the z-stack (RAW; SLM fixed) -----------------------------------
+%% ---- acquire the z-stack (RAW; SLM fixed; gated per plane) ------------------
 % Store the raw frame-averaged plane. No imgaussfilt, no bgd subtraction, no
 % clipping in the SAVED array (a smoothed display copy is fine).
 sutter.setRef()
@@ -144,8 +150,8 @@ for i = 1:numel(UZ)
 
     if i == 1, pause(settle_first_s); else, pause(settle_step_s); end
 
-    data = bas.grab(nframesCapture);
-    dataUZ(:,:,i) = mean(double(data), 3);   % RAW averaged plane
+    % hologram ON only for the grab, OFF in between (limits bleaching)
+    dataUZ(:,:,i) = grab_gated(comm, bas, pwr/1000, nframesCapture, 'double');
 
     % live view only (does not touch the saved array)
     subplot(1,2,1)
@@ -162,10 +168,9 @@ disp('Done collecting stack.')
 
 %% ---- bleaching check (README item 11) ---------------------------------------
 % Re-grab the first plane; if the field is now dimmer at equivalent focus the
-% axial profile is corrupted -> retake at lower power. (Beam is on throughout,
-% so this measures real bleaching of the beads.)
+% axial profile is corrupted -> retake at lower power.
 sutter.moveZ(UZ(1)); pause(settle_first_s);   % large jump back to the first plane
-recheck = mean(double(bas.grab(nframesCapture)), 3);
+recheck = grab_gated(comm, bas, pwr/1000, nframesCapture, 'double');
 sutter.moveToRef()
 pause(0.1)
 
@@ -184,10 +189,10 @@ muUsed = 50;
 disp('Determining pxPerMu...')
 
 sutter.moveTo([0 0 0]); pause(settle_first_s);
-p1 = mean(double(bas.grab(nframesCapture)), 3);
+p1 = grab_gated(comm, bas, pwr/1000, nframesCapture, 'double');
 
 sutter.moveTo([0 muUsed 0]); pause(settle_first_s);   % 50 um lateral jump
-p2 = mean(double(bas.grab(nframesCapture)), 3);
+p2 = grab_gated(comm, bas, pwr/1000, nframesCapture, 'double');
 sutter.moveToRef()
 pause(0.1)
 
@@ -202,7 +207,7 @@ refs = struct();
 
 % (a) blank-SLM raster/frame of the same field, no hologram.
 slm.blank();   % feeds zeros(Nx,Ny); dimension-safe
-refs.reference_blank = mean(double(bas.grab(nframesCapture)), 3);
+refs.reference_blank = grab_gated(comm, bas, pwr/1000, nframesCapture, 'double');
 slm.feed(Holo);   % restore the grid
 
 % (b) "existing static correction disabled" reference.
@@ -238,7 +243,7 @@ meta.z_planes_um      = UZ;
 meta.pxPerMu          = pxPerMu;
 meta.pixel_size_um    = pixel_size_um;
 meta.wavelength_nm    = wavelength;
-meta.power_mW         = pwr_mW;      % operator-recorded (set by hand)
+meta.power_mW         = pwr;         % commanded to the DAQ over Holochat
 meta.frames_averaged  = nframesCapture;
 meta.camera_exposure  = bas.exposure;
 meta.na               = na;
@@ -249,21 +254,56 @@ meta.pattern_file     = pattern_file;
 meta.bleach_ratio     = bleach_ratio;
 meta.cgh_method       = Setup.CGHMethod;
 meta.timestamp        = datestr(now, 'yyyy-mm-ddTHH:MM:SS'); %#ok<TNOW1,DATST>
-% If slm_pupil_mapping.m has been run in this session, fold in only its SCALAR
-% summary parameters (the full struct holds raw camera frames -- those stay in
-% the pupil-mapping .mat, not in this stack's JSON).
-if exist('pupil_mapping', 'var')
+% Fold in only the SCALAR mapping summary from slm_pupil_mapping.m (the full
+% struct holds raw camera frames -- those stay in the pupil-mapping .mat, not in
+% this stack's JSON). This script `clear`s at the top, so read it from the .mat
+% slm_pupil_mapping.m saved today, not the workspace.
+pm_src = [];
+if exist('pupil_mapping', 'var')            % (if run without clearing)
+    pm_src = pupil_mapping;
+else
+    pm_file_in = fullfile(outdir, sprintf('%s_pupil_mapping_%dnm.mat', stamp, wavelength));
+    if isfile(pm_file_in), pm_src = load(pm_file_in); end
+end
+if ~isempty(pm_src)
     pm = struct();
     for f = {'rotation_deg','mirror_flip','pupil_center_px', ...
              'pupil_diameter_px','defocus_scale_um_per_unit'}
-        if isfield(pupil_mapping, f{1}), pm.(f{1}) = pupil_mapping.(f{1}); end
+        if isfield(pm_src, f{1}), pm.(f{1}) = pm_src.(f{1}); end
     end
     meta.pupil_mapping = pm;
 end
 
 outpaths = save_bead_stack(outdir, stem, dataUZ, bgd, refs, meta);
 
-slm.blank()   % park the SLM, as get_psf_no_power does on exit
+comm.send('end', 'daq');   % release the DAQ power loop (it zeros power, acks 'kthx')
+slm.blank()                % park the SLM
 
 fprintf('\nAcquisition complete in %.0f s. Output in:\n  %s\n', toc(tBegin), outdir);
 disp(outpaths)
+
+%% ---- local helpers ----------------------------------------------------------
+function img = grab_gated(comm, bas, pwr_W, nframes, castTo)
+% Gate the hologram ON, grab+average, gate OFF. Returns 'double' (default) for
+% the saved stack, or 'uint8' raw frames for the saturation check.
+if nargin < 5, castTo = 'double'; end
+power_gate(comm, pwr_W);
+frames = bas.grab(nframes);
+power_gate(comm, 0);
+if strcmp(castTo, 'uint8')
+    img = frames;                       % raw, for max()/saturation test
+else
+    img = mean(double(frames), 3);      % averaged plane
+end
+end
+
+function power_gate(comm, val_W)
+% Command the DAQ (alignCodeDAQ2K) to set laser power to val_W (0 = off) and wait
+% for its 'gotit' ack. Message is [power_W, divisor, multiplier]; the DAQ computes
+% PowerRequest = power_W*mult/div, so [val 1 1] requests exactly val watts.
+comm.send([val_W, 1, 1], 'daq');
+invar = [];
+while ~strcmp(invar, 'gotit')
+    invar = comm.read(0.01);
+end
+end

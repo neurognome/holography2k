@@ -12,10 +12,11 @@
 % Reuses the same primitives as get_psf_v2 / acquire_bead_grid_stack:
 %   function_Make_3D_SHOT_Holos, slm.feed, bas.grab, function_findcenter.
 %
-% Run cell-by-cell on the holography computer. Laser power is set MANUALLY (no
-% DAQ power server), matching get_psf_no_power.m. The final cell assembles a
-% `pupil_mapping` struct that acquire_bead_grid_stack.m folds into the handoff
-% metadata automatically if it is present in the workspace.
+% Run cell-by-cell on the holography computer. Laser power is controlled over
+% Holochat by the DAQ computer (run alignCodeDAQ2K there first), so the hologram
+% is gated ON only during each grab. The final cell assembles a `pupil_mapping`
+% struct that acquire_bead_grid_stack.m folds into the handoff metadata
+% automatically if it is present in the workspace.
 %
 % Several parameters here are semi-quantitative read-offs (README explicitly
 % frames them as empirical). Where a value cannot be reduced to a single number
@@ -30,6 +31,7 @@ makePaths()
 %% ---- setup (same as acquire_bead_grid_stack.m) ------------------------------
 wavelength = 1030;
 nframes    = 10;
+pwr        = 5;      % mW, commanded to the DAQ; gated ON per grab
 
 Setup = function_loadparameters2();
 Setup.CGHMethod = 2; Setup.GSoffset = 0; Setup.verbose = 0;
@@ -41,10 +43,15 @@ slm.stop(); slm.wait_for_trigger = 0; slm.start();
 sutter = sutterController();
 bas = bascam(); bas.start()
 
-% Power is set MANUALLY (no DAQ power server). Preview a central spot and dial the
-% laser up by hand to ~80% of camera max before running the mapping cells.
+% Power control over Holochat (DAQ computer must be running alignCodeDAQ2K).
+comm = HolochatInterface('holo');
+comm.send(wavelength, 'daq');
+comm.flush();
+
+% Preview a central spot (gated ON) and tune `pwr` to ~80% of camera max before
+% running the mapping cells.
 slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.5 0.5 0 1]));
-bas.preview()   % close when the power looks right
+power_gate(comm, pwr/1000); bas.preview(); power_gate(comm, 0);
 
 % central reference target used throughout
 xc = 0.5; yc = 0.5;
@@ -62,7 +69,7 @@ probes = [ xc-dxy, yc     ;          % -x
            xc,     yc+dxy ];         % +y
 cen = zeros(4, 2);
 for k = 1:4
-    cen(k,:) = grab_spot_center(Setup, slm, bas, [probes(k,:) 0 1], nframes);
+    cen(k,:) = grab_spot_center(Setup, slm, bas, comm, pwr, [probes(k,:) 0 1], nframes);
 end
 % camera displacement per unit SLM move, columns = [d/dx , d/dy]
 dCam_dx = (cen(2,:) - cen(1,:))' / (2*dxy);   % 2x1 [drow; dcol] per unit SLM-x
@@ -87,9 +94,9 @@ spot = [xc yc 0 1];
 Holo_L = Holo; Holo_L(:, 1:512) = 0;     % block left half of SLM
 Holo_R = Holo; Holo_R(:, 513:end) = 0;   % block right half
 
-img_full = feed_and_grab(slm, bas, Holo,   nframes);
-img_L    = feed_and_grab(slm, bas, Holo_L, nframes);
-img_R    = feed_and_grab(slm, bas, Holo_R, nframes);
+img_full = feed_and_grab(slm, bas, comm, pwr, Holo,   nframes);
+img_L    = feed_and_grab(slm, bas, comm, pwr, Holo_L, nframes);
+img_R    = feed_and_grab(slm, bas, comm, pwr, Holo_R, nframes);
 slm.feed(Holo);
 
 figure('Name','(6) Half-pupil block'); clf
@@ -125,7 +132,7 @@ for m = 1:numel(zSLM)
     for j = 1:numel(zScan)
         sutter.moveZ(zScan(j));
         if j==1, pause(settle_first_s); else, pause(settle_step_s); end
-        fr = mean(double(bas.grab(nframes)), 3);
+        fr = grab_gated(comm, bas, pwr, nframes);
         prof(j) = max(fr(:));
     end
     ff = fit(zScan(:), prof(:), 'gauss1');   % peak = physical focus for this defocus
@@ -157,7 +164,7 @@ sweepI = zeros(numel(radii), 4);
 for d = 1:4
     for r = 1:numel(radii)
         tgt = [xc yc] + radii(r)*dirs(d,:);
-        fr = feed_and_grab(slm, bas, ...
+        fr = feed_and_grab(slm, bas, comm, pwr, ...
                 function_Make_3D_SHOT_Holos(Setup, [tgt 0 1]), nframes);
         sweepI(r,d) = max(fr(:));
     end
@@ -202,7 +209,7 @@ probe_pts = [0.35 0.35; 0.65 0.35; 0.5 0.5; 0.35 0.65; 0.65 0.65];
 meas_cam = zeros(size(probe_pts));
 pred_SI  = zeros(size(probe_pts));
 for k = 1:size(probe_pts,1)
-    meas_cam(k,:) = grab_spot_center(Setup, slm, bas, [probe_pts(k,:) 0 1], nframes);
+    meas_cam(k,:) = grab_spot_center(Setup, slm, bas, comm, pwr, [probe_pts(k,:) 0 1], nframes);
     si = function_SLMtoSI([probe_pts(k,:) 0], CoC);
     pred_SI(k,:) = si(1:2);
 end
@@ -234,19 +241,38 @@ pm_file = fullfile(pm_dir, sprintf('%s_pupil_mapping_%dnm.mat', datestr(now,'yym
 save(pm_file, '-struct', 'pupil_mapping');
 fprintf('Saved full pupil_mapping -> %s\n', pm_file);
 
-disp('`pupil_mapping` is in the workspace; run acquire_bead_grid_stack.m next to');
-disp('fold its summary into the stack metadata automatically.');
+comm.send('end', 'daq');   % release the DAQ power loop (alignCodeDAQ2K exits)
+
+disp('Saved pupil_mapping .mat; acquire_bead_grid_stack.m loads its summary from');
+disp('there. RESTART alignCodeDAQ2K on the DAQ before running the acquisition.');
 
 %% ============================ local helpers =================================
-function c = grab_spot_center(Setup, slm, bas, coord4, nframes)
-% Feed a single target, grab+average, return spot center [row col].
-fr = feed_and_grab(slm, bas, function_Make_3D_SHOT_Holos(Setup, coord4), nframes);
+function c = grab_spot_center(Setup, slm, bas, comm, pwr, coord4, nframes)
+% Feed a single target, grab+average (gated), return spot center [row col].
+fr = feed_and_grab(slm, bas, comm, pwr, function_Make_3D_SHOT_Holos(Setup, coord4), nframes);
 [x, y] = function_findcenter(fr);
 c = [x, y];
 end
 
-function img = feed_and_grab(slm, bas, Holo, nframes)
-% Feed a hologram and return the frame-average (power set manually; beam left on).
+function img = feed_and_grab(slm, bas, comm, pwr, Holo, nframes)
+% Feed a hologram, then grab with the beam gated ON only for the grab.
 slm.feed(Holo);
+img = grab_gated(comm, bas, pwr, nframes);
+end
+
+function img = grab_gated(comm, bas, pwr, nframes)
+% Gate the hologram ON (pwr in mW), grab+average, gate OFF.
+power_gate(comm, pwr/1000);
 img = mean(double(bas.grab(nframes)), 3);
+power_gate(comm, 0);
+end
+
+function power_gate(comm, val_W)
+% Command the DAQ (alignCodeDAQ2K) to set laser power to val_W (0 = off) and wait
+% for its 'gotit' ack. Message [power_W, div, mult]; DAQ computes power_W*mult/div.
+comm.send([val_W, 1, 1], 'daq');
+invar = [];
+while ~strcmp(invar, 'gotit')
+    invar = comm.read(0.01);
+end
 end
