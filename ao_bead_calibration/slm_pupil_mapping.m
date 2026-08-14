@@ -28,7 +28,7 @@ clc
 makePaths()
 
 %% ---- setup (same as acquire_bead_grid_stack.m) ------------------------------
-wavelength = 1030;
+wavelength = 1100;
 nframes    = 10;
 
 Setup = function_loadparameters2();
@@ -43,8 +43,10 @@ bas = bascam(); bas.start()
 
 % Power is set MANUALLY (no DAQ power server). Preview a central spot and dial the
 % laser up by hand to ~80% of camera max before running the mapping cells.
-slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.5 0.5 0 1]));
+slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.4 0.4 0 1]));
 bas.preview()   % close when the power looks right
+
+sutter.setRef()
 
 % central reference target used throughout
 xc = 0.5; yc = 0.5;
@@ -79,7 +81,7 @@ fprintf('(5) rotation ~ %.1f deg;  mirror flip = %d;  det(J) = %.3g\n', ...
 
 %% ---- (6) MIRROR-FLIP CONFIRM via half-pupil block ---------------------------
 % Blank the left half of the SLM and image the resulting PSF asymmetry; repeat
-% for the right half. Which half of the PSF dims (and on which camera side)
+% for the right half. Which half of the PSxF dims (and on which camera side)
 % independently confirms orientation / handedness from (5).
 spot = [xc yc 0 1];
 [Holo, ~, ~] = function_Make_3D_SHOT_Holos(Setup, spot);
@@ -109,12 +111,11 @@ disp('(6) Half-pupil frames stored. Read the PSF-shift direction to confirm flip
 % defocus term -- the quantity that, with the Fresnel model in
 % function_GenerateFresnelPropagationStack, sets the effective pupil diameter.
 zSLM   = [-0.03 -0.015 0 0.015 0.03];   % SLM defocus coeffs to probe
-zScan  = linspace(-40, 40, 41);         % Sutter search range (um) per defocus
+zScan  = linspace(-100, 100, 41);         % Sutter search range (um) per defocus
 focus_um = zeros(size(zSLM));
 
-sutter.setRef()
 for m = 1:numel(zSLM)
-    [Hm, ~, ~] = function_Make_3D_SHOT_Holos(Setup, [xc yc zSLM(m) 1]);
+    [Hm, ~, ~] = function_Make_3D_SHOT_Holos(Setup, [xc-dxy yc-dxy zSLM(m) 1]);
     slm.feed(Hm);
     prof = zeros(size(zScan));
     for j = 1:numel(zScan)
@@ -235,6 +236,7 @@ function c = grab_spot_center(Setup, slm, bas, coord4, nframes)
 % Feed a single target, grab+average, return spot center [row col].
 fr = feed_and_grab(slm, bas, function_Make_3D_SHOT_Holos(Setup, coord4), nframes);
 [x, y] = function_findcenter(fr);
+imagesc(fr)
 c = [x, y];
 end
 

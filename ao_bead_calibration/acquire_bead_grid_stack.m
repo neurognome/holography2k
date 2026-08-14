@@ -29,7 +29,7 @@ disp('Setting up AO bead-grid acquisition...');
 makePaths()
 
 %% ---- user parameters --------------------------------------------------------
-wavelength      = 1030;              % SLM wavelength (900 / 1030 / 1100)
+wavelength      = 1100;              % SLM wavelength (900 / 1030 / 1100)
 mouse_or_slide  = 'beadslide';       % label for the output stem
 epoch           = 1;
 
@@ -49,9 +49,9 @@ pwr_mW          = [];               % <- fill in the power you set by hand
 
 % Objective / analysis metadata that is NOT knowable from the rig code -- fill
 % these in for the handoff (README item 3 / 15). Left here so they are obvious.
-na              = [];               % objective NA            e.g. 0.8
-objective_mag   = [];               % objective magnification e.g. 16
-pupil_fill      = [];               % pupil-fill fraction     e.g. 0.9
+na              = 0.8;               % objective NA            e.g. 0.8
+objective_mag   = 16;               % objective magnification e.g. 16
+pupil_fill      = 0.9;               % pupil-fill fraction     e.g. 0.9
 
 %% ---- hardware setup (mirrors get_psf_no_power.m:1-33) -----------------------
 Setup = function_loadparameters2();
