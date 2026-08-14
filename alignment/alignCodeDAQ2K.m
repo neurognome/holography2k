@@ -38,6 +38,15 @@ switch calibration_wavelength
         pwr = laser_1100;
     case 1030
         pwr = laser_1030;
+    otherwise
+        % Empty means comm.read(10) timed out (the holo side did not send a
+        % wavelength within the window); any other value is a laser we have no
+        % calibration for. Fail clearly here instead of leaving pwr undefined
+        % and throwing a cryptic error at pwr.initialize() below.
+        error('alignCodeDAQ2K:wavelength', ...
+            ['No usable calibration wavelength (got %s). Start this fresh and ' ...
+             'have the holo side send 900/1030/1100/607 within 10 s.'], ...
+            mat2str(calibration_wavelength));
 end
 
 pwr.initialize();
@@ -50,7 +59,7 @@ tstart = tic;
 go =1;
 while go;
     invar = comm.read(0.01);
-    if ~isempty(invar) && ~ischar(invar)
+    if ~isempty(invar) && ~ischar(invar) && numel(invar) >= 3
         fprintf('Update Power: ')
         PowerRequest = (invar(1)*invar(3))/invar(2);
         
@@ -75,8 +84,17 @@ while go;
         
         fprintf(['Time since last run ' num2str(toc(tstart),2) 's\n']);
         tstart=tic;
+    elseif ~isempty(invar) && ~ischar(invar)
+        % Numeric but fewer than 3 elements -> not a power request (those are
+        % [power_W divisor multiplier]). Happens if the wavelength is re-sent to
+        % an already-running loop (e.g. the operator forgot to restart this
+        % between scripts). Ignore it rather than indexing invar(3) and crashing,
+        % so a forgotten restart is benign instead of fatal.
+        warning('alignCodeDAQ2K:strayNumeric', ...
+            'Ignoring non-power numeric message (numel=%d, expected 3): %s', ...
+            numel(invar), mat2str(invar));
     end
-    
+
     if toc(tstart)>timeoutTime || strcmp(invar,'end');
         go=0;
         if calibration_wavelength == 1030
