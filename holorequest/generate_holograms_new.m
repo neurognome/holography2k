@@ -9,9 +9,35 @@ x = 1;
 if nargin >= 4 && ~isempty(preread)
     HRin = preread;
 else
+    % msg/holo carries two different things: a holoRequest (STRUCT) and a
+    % per-trial firing order (CELL). This read used to accept whatever turned up
+    % and hand it straight to Pattern.from_struct, so a firing order left over
+    % from an aborted run -- or posted early by a DAQ that got ahead -- was
+    % consumed as if it were a holoRequest, died on holoRequest.patterns, and took
+    % the real request down with it (msg is read-once: once swallowed, it is
+    % gone). Discard anything that is not a struct and keep waiting.
+    %
+    % The wait is also bounded now. It used to be `while isempty(HRin)` with no
+    % timeout, which meant a lost request parked the listener forever while the
+    % DAQ sat out its own 900 s transfer_timeout and neither side said why.
+    HR_WAIT = 900;   % s; matches the DAQ's HoloComputer.transfer_timeout
     HRin = [];
+    t0 = tic;
     while isempty(HRin)
         HRin = comm.read(0.5);
+        if ~isempty(HRin) && ~isstruct(HRin)
+            warning('generate_holograms:notAHoloRequest', ...
+                ['Discarded a %s on msg/holo while waiting for a holoRequest ' ...
+                 '(a firing order\nfrom an aborted run looks like this). Still ' ...
+                 'waiting for the real request.'], class(HRin));
+            HRin = [];
+        end
+        if isempty(HRin) && toc(t0) > HR_WAIT
+            error('generate_holograms:requestTimeout', ...
+                ['No holoRequest arrived on msg/holo after %g s. The DAQ sends one ' ...
+                 'per opto\nchannel from initialize_opto; if it errored or was ' ...
+                 'stopped, nothing is coming.'], HR_WAIT);
+        end
     end
 end
 disp('new File Detected - running HoloRequest')
@@ -104,6 +130,12 @@ end
 
 % here we should calculate any power biases before sending it back
 
+% Deliberately BEFORE the compile loop below: the DAQ needs this channel's
+% diffraction efficiencies to build its StimInfo, and letting it do that while we
+% compile is what keeps a prime as fast as it was. What it does NOT mean is "this
+% channel is finished" -- that used to be the only signal the DAQ had, which is
+% precisely how it got ahead of us. The real per-channel barrier is
+% HoloListener.wait_for_go, which runs after this function returns.
 comm.send(arrayfun(@struct, reshape(patterns, og_dims)), 'daq'); % reshape patterns to the og format
 disp('Sent patterns back to DAQ');
 

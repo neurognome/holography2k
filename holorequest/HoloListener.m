@@ -58,6 +58,11 @@ classdef HoloListener < handle
         % all a config channel needs, and hammering it is what scan_config exists to
         % avoid.
         config_period = 0.25
+        % How long to wait for the DAQ's per-channel go-ahead (config/holo_go)
+        % before failing the prime. This budget has to cover the DAQ building one
+        % channel's StimInfo for every trial, which is why it is much larger than
+        % the DAQ's own HoloAckTimeout: that one only covers a config round-trip.
+        go_timeout = 300
 
         poll = []            % async timer ([] unless listen_async is running)
 
@@ -160,6 +165,7 @@ classdef HoloListener < handle
             [cgh_method, cgh_src]   = local_cfg([], 'holo.cgh_method', 2);
             [use_gpu, gpu_src]      = local_cfg([], 'holo.use_gpu', true);
             [obj.timeout_ms, to_src] = local_cfg(opt.Timeout, 'holo.slm_timeout_ms', 1700);
+            [obj.go_timeout, go_src] = local_cfg([], 'holo.go_timeout_s', 300);
 
             fprintf('--- holo listener config ---\n');
             fprintf('  calib dir   : %s   (%s)\n', obj.calib_dir, calib_src);
@@ -167,6 +173,7 @@ classdef HoloListener < handle
             fprintf('  cgh method  : %d   (%s)\n', cgh_method, cgh_src);
             fprintf('  use gpu     : %d   (%s)\n', use_gpu, gpu_src);
             fprintf('  slm timeout : %d ms   (%s)\n', obj.timeout_ms, to_src);
+            fprintf('  go timeout  : %g s   (%s)\n', obj.go_timeout, go_src);
             if ~isfolder(obj.calib_dir)
                 warning('holo_listener:noCalibDir', ...
                     ['The calibration folder does not exist:\n  %s\nfind_latest_calib ' ...
@@ -552,10 +559,27 @@ classdef HoloListener < handle
                     end
                     holos{k} = uint8(hololist);
                     got(k) = true;
+                    % LOCKSTEP. generate_holograms_new answers the DAQ with this
+                    % channel's patterns BEFORE compiling them, so "the DAQ got its
+                    % reply" only means it can start building this channel's
+                    % StimInfo -- it does not mean the DAQ is finished with the
+                    % channel. Wait for it to say so before touching channel n+1.
+                    %
+                    % Without this the DAQ runs ahead, and whatever it posts to
+                    % msg/holo while we are compiling is deleted by the flush()
+                    % below (msg is a single-slot read-once mailbox with no queue),
+                    % which is what used to hang a prime. Waiting after the LAST
+                    % channel too is what makes that flush safe: by then the DAQ
+                    % has posted everything it is going to post, and it posts
+                    % nothing more until the operator clicks Start -- which the
+                    % launcher now gates on the 'holograms compiled' ack below.
+                    obj.wait_for_go(p, c(k), k);
                 end
                 assert(all(got), 'holo_listener:missingChannel', ...
                     'No holoRequest arrived for channel(s): %s.', ...
                     strjoin({c(~got).name}, ', '));
+                % Safe now: every channel's go-ahead is in, so nothing of the DAQ's
+                % can be in flight on msg/holo for this to throw away.
                 obj.comm.flush();
 
                 % 3) (re)arm the SLM(s) for triggered playback.
@@ -588,6 +612,54 @@ classdef HoloListener < handle
                 obj.set_message(false, err.message);
                 obj.set_phase('waiting');
             end
+        end
+
+        function wait_for_go(obj, p, ch, k)
+            %WAIT_FOR_GO Block until the DAQ says it is done with opto channel k.
+            %   The go-ahead rides on config/holo_go, NOT on msg/holo, and that is
+            %   the whole point: config topics are persistent and last-value-wins,
+            %   so a go-ahead cannot be missed by a listener that happens to be
+            %   busy, and cannot be deleted by a flush. A msg-borne handshake would
+            %   reproduce exactly the race this is here to close.
+            %
+            %   Matching is >= on both fields rather than ==. prime_seq >= is the
+            %   existing convention (see local_is_new). channel_index >= matters
+            %   because config is last-value-wins: if the DAQ is fast enough to
+            %   overwrite GO(k) with GO(k+1) before we look, GO(k+1) still has to
+            %   release channel k or we would deadlock on a message that already
+            %   came and went.
+            if isempty(obj.comm), return; end   % Offline: nobody to wait for
+            % k is the slot in the prime's channel table, which is the rig's opto
+            % declaration order -- the same order the DAQ transfers in and the same
+            % number it stamps as channel_index. The channel table itself carries
+            % no index field, so the position IS the index.
+            want  = k;
+            label = char(local_field(ch, 'name', sprintf('channel %d', k)));
+            fprintf('Waiting for the DAQ to finish with %s...\n', label);
+            t0 = tic;
+            while toc(t0) < obj.go_timeout
+                g = [];
+                try, g = obj.comm.scan_config('holo_go'); catch, end
+                if local_go_released(g, p, want)
+                    fprintf('  DAQ released %s after %.1f s.\n', label, toc(t0));
+                    return
+                end
+                % Honour an abort while we sit here, or the launcher's Abort button
+                % would do nothing for the whole go_timeout.
+                if local_current_abort(obj.comm) > obj.last_abort_seq
+                    obj.last_abort_seq = local_current_abort(obj.comm);
+                    error('holo_listener:aborted', ...
+                        'Aborted by the DAQ while waiting for the %s go-ahead.', label);
+                end
+                pause(0.1);
+            end
+            error('holo_listener:goTimeout', ...
+                ['The DAQ never confirmed it finished with %s (waited %g s).\n' ...
+                 'It posts that confirmation on config/holo_go after building the ' ...
+                 'channel''s\nStimInfo. A DAQ that died mid-prime, or one running a ' ...
+                 'holoexpt from before\nthe lockstep handshake, never sends it. ' ...
+                 'Raise holo.go_timeout_s if this rig\nlegitimately needs longer.'], ...
+                label, obj.go_timeout);
         end
 
         function step_serving(obj)
@@ -1064,6 +1136,25 @@ end
 function tf = local_is_new(prime, last_seq)
     tf = isstruct(prime) && isfield(prime, 'prime_seq') && ~isempty(prime.prime_seq) ...
         && prime.prime_seq > last_seq;
+end
+function tf = local_go_released(go, prime, want)
+%LOCAL_GO_RELEASED Has the DAQ confirmed it finished with channel `want`?
+%   Both comparisons are >=, deliberately:
+%     prime_seq    >= this prime's, so a stale go-ahead from the PREVIOUS
+%                     experiment can never release this one.
+%     channel_index >= want, because config/holo_go is last-value-wins: a DAQ
+%                     that runs through two channels between our polls leaves
+%                     only GO(2) on the topic, and that has to satisfy the wait
+%                     for channel 1 as well or we would block on a message that
+%                     already came and went.
+    tf = false;
+    if ~isstruct(go) || isempty(go), return; end
+    if ~isfield(go, 'channel_index') || isempty(go.channel_index), return; end
+    if isstruct(prime) && isfield(prime, 'prime_seq') && ~isempty(prime.prime_seq)
+        if ~isfield(go, 'prime_seq') || isempty(go.prime_seq), return; end
+        if go.prime_seq < prime.prime_seq, return; end
+    end
+    tf = double(go.channel_index) >= want;
 end
 
 function s = local_stem(prime)
