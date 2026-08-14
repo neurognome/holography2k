@@ -7,10 +7,11 @@ target pattern, and the analysis; **this folder is the scope2k side** — Phase 
 beads, plus references and metadata). See the full protocol in
 `~/Downloads/README_AO_bead_calibration.md`.
 
-Detection is on the **Basler alignment camera** (the get_psf_v2 path): the
+Detection is on the **Basler alignment camera** (the get_psf_no_power path): the
 holographic grid is the excitation, and the camera images its two-photon
-fluorescence directly, so each spot *is* a PSF on the camera. Power is gated by
-the **DAQ power server** (msocket port 42130), on only during each grab.
+fluorescence directly, so each spot *is* a PSF on the camera. Laser power is set
+**manually** by the operator (no DAQ power server / no msocket gating) and left
+on for the acquisition, exactly like `get_psf_no_power.m`.
 
 ## Files
 
@@ -23,16 +24,17 @@ the **DAQ power server** (msocket port 42130), on only during each grab.
 
 ## Run order
 
-1. **DAQ computer:** start the power responder that answers the 42130 gate with
-   `'gotit'` (`holography2k/alignment/alignCodeDAQ2K.m`, the same responder the
-   PSF/alignment scripts use). Without it, the `mssend(... [pwr 1 1])` calls
-   block forever.
+1. **Set the laser power by hand** (shutter / rotator / EOM as usual) before
+   running — there is no software power control in these scripts.
 2. **Holography computer:** run `slm_pupil_mapping.m` cell-by-cell on the bead
-   slide. Confirm the four printed parameters look sane. Keep the session open.
+   slide (its setup cell previews a central spot so you can dial the power to
+   ~80% of camera max). Confirm the four printed parameters look sane. Keep the
+   session open.
 3. Run `acquire_bead_grid_stack.m` cell-by-cell:
    - preview → find a bead field with beads well separated vs. the grid spacing;
-   - **no-saturation cell:** tune `pwr` until the brightest bead is well under
-     the 8-bit ceiling (255 DN);
+   - **set-power / no-saturation cell:** raise the laser by hand until the
+     brightest bead is well under the 8-bit ceiling (255 DN); record the mW in
+     `pwr_mW` for the metadata;
    - verify each grid spot lands on a bead (nudge the grid / coordinate file if
      not — spots off beads measure nothing);
    - acquire the stack, let the bleaching re-check pass, then it saves.
@@ -43,7 +45,7 @@ the **DAQ power server** (msocket port 42130), on only during each grab.
 - **No saturation.** Both phase retrieval and deconvolution fail on clipped
   pixels. The no-saturation cell warns; do not proceed past a saturated frame.
 - **No smoothing / no background subtraction / no clipping in the saved stack.**
-  The saved TIFF is the raw frame-average, float32. `get_psf_v2` smooths and
+  The saved TIFF is the raw frame-average, float32. `get_psf_no_power` smooths and
   background-subtracts *for its own FWHM display only*; we deliberately do not,
   because those steps corrupt the data Génesis deconvolves. Background and
   reference frames are saved separately for her to use as she sees fit.

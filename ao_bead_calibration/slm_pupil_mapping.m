@@ -12,10 +12,10 @@
 % Reuses the same primitives as get_psf_v2 / acquire_bead_grid_stack:
 %   function_Make_3D_SHOT_Holos, slm.feed, bas.grab, function_findcenter.
 %
-% Run cell-by-cell on the holography computer AFTER starting the DAQ-side power
-% responder (42130 gate). The final cell assembles a `pupil_mapping` struct that
-% acquire_bead_grid_stack.m folds into the handoff metadata automatically if it
-% is present in the workspace.
+% Run cell-by-cell on the holography computer. Laser power is set MANUALLY (no
+% DAQ power server), matching get_psf_no_power.m. The final cell assembles a
+% `pupil_mapping` struct that acquire_bead_grid_stack.m folds into the handoff
+% metadata automatically if it is present in the workspace.
 %
 % Several parameters here are semi-quantitative read-offs (README explicitly
 % frames them as empirical). Where a value cannot be reduced to a single number
@@ -29,7 +29,6 @@ makePaths()
 
 %% ---- setup (same as acquire_bead_grid_stack.m) ------------------------------
 wavelength = 1030;
-pwr        = 0.1;      % mW, gated per grab
 nframes    = 10;
 
 Setup = function_loadparameters2();
@@ -42,14 +41,10 @@ slm.stop(); slm.wait_for_trigger = 0; slm.start();
 sutter = sutterController();
 bas = bascam(); bas.start()
 
-fprintf('Waiting for msocket communication From DAQ... ')
-srvsock = mslisten(42130);
-masterSocket = msaccept(srvsock, 15); msclose(srvsock);
-mssend(masterSocket, 'A');
-invar = [];
-while ~strcmp(invar, 'B'), invar = msrecv(masterSocket, .5); end
-mssend(masterSocket, wavelength);
-fprintf('done.\r')
+% Power is set MANUALLY (no DAQ power server). Preview a central spot and dial the
+% laser up by hand to ~80% of camera max before running the mapping cells.
+slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.5 0.5 0 1]));
+bas.preview()   % close when the power looks right
 
 % central reference target used throughout
 xc = 0.5; yc = 0.5;
@@ -67,8 +62,7 @@ probes = [ xc-dxy, yc     ;          % -x
            xc,     yc+dxy ];         % +y
 cen = zeros(4, 2);
 for k = 1:4
-    cen(k,:) = grab_spot_center(Setup, slm, bas, masterSocket, ...
-                                [probes(k,:) 0 1], pwr, nframes);
+    cen(k,:) = grab_spot_center(Setup, slm, bas, [probes(k,:) 0 1], nframes);
 end
 % camera displacement per unit SLM move, columns = [d/dx , d/dy]
 dCam_dx = (cen(2,:) - cen(1,:))' / (2*dxy);   % 2x1 [drow; dcol] per unit SLM-x
@@ -93,9 +87,9 @@ spot = [xc yc 0 1];
 Holo_L = Holo; Holo_L(:, 1:512) = 0;     % block left half of SLM
 Holo_R = Holo; Holo_R(:, 513:end) = 0;   % block right half
 
-img_full = feed_and_grab(slm, bas, masterSocket, Holo,   pwr, nframes);
-img_L    = feed_and_grab(slm, bas, masterSocket, Holo_L, pwr, nframes);
-img_R    = feed_and_grab(slm, bas, masterSocket, Holo_R, pwr, nframes);
+img_full = feed_and_grab(slm, bas, Holo,   nframes);
+img_L    = feed_and_grab(slm, bas, Holo_L, nframes);
+img_R    = feed_and_grab(slm, bas, Holo_R, nframes);
 slm.feed(Holo);
 
 figure('Name','(6) Half-pupil block'); clf
@@ -125,7 +119,7 @@ for m = 1:numel(zSLM)
     prof = zeros(size(zScan));
     for j = 1:numel(zScan)
         sutter.moveZ(zScan(j)); if j==1, pause(0.5); else, pause(0.05); end
-        fr = grab_gated(bas, masterSocket, pwr, nframes);
+        fr = mean(double(bas.grab(nframes)), 3);
         prof(j) = max(fr(:));
     end
     ff = fit(zScan(:), prof(:), 'gauss1');   % peak = physical focus for this defocus
@@ -156,8 +150,8 @@ sweepI = zeros(numel(radii), 4);
 for d = 1:4
     for r = 1:numel(radii)
         tgt = [xc yc] + radii(r)*dirs(d,:);
-        fr = feed_and_grab(slm, bas, masterSocket, ...
-                function_Make_3D_SHOT_Holos(Setup, [tgt 0 1]), pwr, nframes);
+        fr = feed_and_grab(slm, bas, ...
+                function_Make_3D_SHOT_Holos(Setup, [tgt 0 1]), nframes);
         sweepI(r,d) = max(fr(:));
     end
     % edge = radius where intensity drops below half of its near-center value
@@ -201,8 +195,7 @@ probe_pts = [0.35 0.35; 0.65 0.35; 0.5 0.5; 0.35 0.65; 0.65 0.65];
 meas_cam = zeros(size(probe_pts));
 pred_SI  = zeros(size(probe_pts));
 for k = 1:size(probe_pts,1)
-    meas_cam(k,:) = grab_spot_center(Setup, slm, bas, masterSocket, ...
-                        [probe_pts(k,:) 0 1], pwr, nframes);
+    meas_cam(k,:) = grab_spot_center(Setup, slm, bas, [probe_pts(k,:) 0 1], nframes);
     si = function_SLMtoSI([probe_pts(k,:) 0], CoC);
     pred_SI(k,:) = si(1:2);
 end
@@ -238,29 +231,15 @@ disp('`pupil_mapping` is in the workspace; run acquire_bead_grid_stack.m next to
 disp('fold its summary into the stack metadata automatically.');
 
 %% ============================ local helpers =================================
-function c = grab_spot_center(Setup, slm, bas, sock, coord4, pwr, nframes)
-% Feed a single target, grab, background-subtract lightly, return [row col].
-fr = feed_and_grab(slm, bas, sock, ...
-        function_Make_3D_SHOT_Holos(Setup, coord4), pwr, nframes);
+function c = grab_spot_center(Setup, slm, bas, coord4, nframes)
+% Feed a single target, grab+average, return spot center [row col].
+fr = feed_and_grab(slm, bas, function_Make_3D_SHOT_Holos(Setup, coord4), nframes);
 [x, y] = function_findcenter(fr);
 c = [x, y];
 end
 
-function img = feed_and_grab(slm, bas, sock, Holo, pwr, nframes)
+function img = feed_and_grab(slm, bas, Holo, nframes)
+% Feed a hologram and return the frame-average (power set manually; beam left on).
 slm.feed(Holo);
-img = grab_gated(bas, sock, pwr, nframes);
-end
-
-function img = grab_gated(bas, sock, pwr, nframes)
-% Beam ON (wait ack) -> grab+average -> beam OFF (wait ack). get_psf_v2 pattern.
-mssend(sock, [pwr/1000 1 1]); wait_gotit(sock);
 img = mean(double(bas.grab(nframes)), 3);
-mssend(sock, [0 1 1]); wait_gotit(sock);
-end
-
-function wait_gotit(sock)
-invar = [];
-while ~strcmp(invar, 'gotit')
-    invar = msrecv(sock, 0.01);
-end
 end

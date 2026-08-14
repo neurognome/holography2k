@@ -8,16 +8,16 @@
 % FIXED for the entire sweep -- the SLM phase is the quantity being measured, so
 % defocus must come from the stage, never from the SLM (README item 13).
 %
-% Modeled on get_psf_v2.m. Differences: N-spot grid instead of one spot, SLM fed
+% Modeled on get_psf_no_power.m: laser power is set MANUALLY by the operator (no
+% DAQ power server / no msocket gating) and left on for the acquisition.
+% Differences from get_psf_no_power: N-spot grid instead of one spot, SLM fed
 % once and never touched again, and the RAW averaged stack is saved to TIFF (no
 % smoothing / no background subtraction / no clipping) for Genesis's pipeline.
 %
-% RUN ORDER (see README):
-%   1. On the DAQ computer: start the power responder (alignment/alignCodeDAQ2K.m
-%      or equivalent) so the 42130 msocket gate below gets 'gotit' acks.
-%   2. Run this script cell-by-cell on the holography computer.
+% RUN ORDER (see README): set the laser power by hand (shutter/rotator/EOM as
+% usual), then run this script cell-by-cell on the holography computer.
 %
-% Hand-run script (clears the workspace), matching the get_psf_v2.m convention.
+% Hand-run script (clears the workspace), matching the get_psf_no_power.m style.
 
 clear
 close all
@@ -39,28 +39,25 @@ epoch           = 1;
 gridSource      = [];
 gridOpts        = struct('frame','SLM', 'n',20);
 
-% Power: set LOW. This is the per-hologram power in mW; it is gated on only
-% during each grab. Tune it in the "no-saturation check" cell below BEFORE the
-% stack so that no raw pixel reaches the 8-bit camera ceiling (255).
-pwr             = 0.1;               % mW  (matches get_psf_v2 default; verify per rig)
-
 % z-sweep: holographic spots have long axial tails -> wide range, fine step.
 UZ              = linspace(-30, 30, 61);   % um about focus, ~1 um step (README item 13)
 nframesCapture  = 10;                       % frames averaged per plane
 
+% Power is set MANUALLY (no DAQ control here). Record the mW you dialed in for
+% the metadata handoff -- leave [] and it is flagged NEEDS_INPUT.
+pwr_mW          = [];               % <- fill in the power you set by hand
+
 % Objective / analysis metadata that is NOT knowable from the rig code -- fill
 % these in for the handoff (README item 3 / 15). Left here so they are obvious.
-na              = [];                % objective NA           e.g. 0.8
-objective_mag   = [];                % objective magnification e.g. 16
-pupil_fill      = [];                % pupil-fill fraction     e.g. 0.9
+na              = [];               % objective NA            e.g. 0.8
+objective_mag   = [];               % objective magnification e.g. 16
+pupil_fill      = [];               % pupil-fill fraction     e.g. 0.9
 
-%% ---- hardware setup (mirrors get_psf_v2.m:1-40) -----------------------------
+%% ---- hardware setup (mirrors get_psf_no_power.m:1-33) -----------------------
 Setup = function_loadparameters2();
-Setup.CGHMethod = 2;                 % Global GS, as in get_psf_v2
+Setup.CGHMethod = 2;                 % Global GS, as in get_psf_no_power
 Setup.GSoffset  = 0;
 Setup.verbose   = 0;
-Setup.useGPU    = 1;
-Setup.SLM.is_onek = 1;
 
 if Setup.useGPU
     disp('Getting gpu...');
@@ -82,21 +79,6 @@ disp('Setup complete.')
 %% ---- 1p preview: find the objective / bead field ----------------------------
 bas.preview()
 
-%% ---- connect to DAQ computer (power gating, port 42130) ---------------------
-% Identical handshake to get_psf_v2.m:45-63. Start the DAQ-side responder first.
-fprintf('Waiting for msocket communication From DAQ... ')
-srvsock = mslisten(42130);
-masterSocket = msaccept(srvsock, 15);
-msclose(srvsock);
-mssend(masterSocket, 'A');
-
-invar = [];
-while ~strcmp(invar, 'B')
-    invar = msrecv(masterSocket, .5);
-end
-mssend(masterSocket, wavelength);
-fprintf('done.\r')
-
 %% ---- build & feed the grid hologram (ONCE) ----------------------------------
 gridCoords = make_grid_coords(gridSource, wavelength, gridOpts);
 nSpots = size(gridCoords, 1);
@@ -110,33 +92,34 @@ figure('Name','Grid reconstruction (FFT of fed hologram)');
 imagesc(abs(fftshift(fft2(exp(1i*double(Holo)/255*2*pi)))));
 axis image; colorbar; title(sprintf('Expect %d spots', nSpots));
 
-%% ---- no-saturation check (README item 11) -----------------------------------
-% Project the grid at the working power and confirm NO raw pixel clips at 255.
-% Adjust `pwr` above and re-run this cell until the brightest spot is well below
-% the ceiling (aim ~80% of camMax on the brightest bead).
-bgd_frames = bas.grab(10);
-bgd = mean(bgd_frames, 3);
+%% ---- set power by hand + no-saturation check (README item 11) ---------------
+% Dial the laser power up by hand (shutter/rotator/EOM as usual) while previewing
+% the grid, until the brightest bead is ~80% of camera max and NO raw pixel
+% clips at the 8-bit ceiling (255). This power is used for the whole stack.
+bas.preview()   % close the preview window when the power looks right
 
-mssend(masterSocket, [pwr/1000 1 1]);   % beam ON
-wait_gotit(masterSocket);
+% Snapshot at the working power and verify no saturation before acquiring.
 raw = bas.grab(nframesCapture);
-mssend(masterSocket, [0 1 1]);          % beam OFF
-wait_gotit(masterSocket);
-
 rawmax = max(raw(:));
 frac_sat = mean(raw(:) >= bas.camMax);
 fprintf('Raw camera max = %d / %d (%.3f%% of pixels saturated).\n', ...
     rawmax, bas.camMax, 100*frac_sat);
 if rawmax >= bas.camMax
     warning('acquire_bead_grid:saturated', ...
-        ['Camera is SATURATING at the current power (%d DN). Lower `pwr` and ' ...
-         're-run this cell before acquiring the stack -- clipped data breaks ' ...
+        ['Camera is SATURATING at the current power (%d DN). Lower the laser ' ...
+         'power and re-run this cell before acquiring -- clipped data breaks ' ...
          'phase retrieval and deconvolution.'], rawmax);
 end
 
 figure('Name','Working-power frame'); clf
 imagesc(mean(double(raw),3)); axis image; colorbar
 title(sprintf('max = %d DN  (ceiling %d)', rawmax, bas.camMax));
+
+%% ---- background (beam left on, as in get_psf_no_power) ----------------------
+% NOTE: with manual power there is no beam-off background. This is a same-state
+% reference grab; it is saved for Genesis but NOT subtracted from the raw stack.
+bgd_frames = bas.grab(10);
+bgd = mean(bgd_frames, 3);
 
 %% ---- acquire the z-stack (RAW; SLM fixed) -----------------------------------
 % Store the raw frame-averaged plane. No imgaussfilt, no bgd subtraction, no
@@ -154,15 +137,8 @@ for i = 1:numel(UZ)
 
     if i == 1, pause(1); else, pause(0.1); end
 
-    mssend(masterSocket, [pwr/1000 1 1]);   % beam ON
-    wait_gotit(masterSocket);
-
     data = bas.grab(nframesCapture);
-
-    mssend(masterSocket, [0 1 1]);          % beam OFF (limits bleaching)
-    wait_gotit(masterSocket);
-
-    dataUZ(:,:,i) = mean(double(data), 3);  % RAW averaged plane
+    dataUZ(:,:,i) = mean(double(data), 3);   % RAW averaged plane
 
     % live view only (does not touch the saved array)
     subplot(1,2,1)
@@ -178,11 +154,10 @@ disp('Done collecting stack.')
 
 %% ---- bleaching check (README item 11) ---------------------------------------
 % Re-grab the first plane; if the field is now dimmer at equivalent focus the
-% axial profile is corrupted -> retake at lower power.
+% axial profile is corrupted -> retake at lower power. (Beam is on throughout,
+% so this measures real bleaching of the beads.)
 sutter.moveZ(UZ(1)); pause(0.5);
-mssend(masterSocket, [pwr/1000 1 1]); wait_gotit(masterSocket);
 recheck = mean(double(bas.grab(nframesCapture)), 3);
-mssend(masterSocket, [0 1 1]); wait_gotit(masterSocket);
 sutter.moveToRef()
 
 first_signal  = sum(dataUZ(:,:,1) - mean(bgd(:)), 'all');
@@ -195,23 +170,15 @@ if bleach_ratio < 0.9
          'lower power -- the axial profile is bleach-corrupted.'], 100*bleach_ratio);
 end
 
-%% ---- pixel size: pxPerMu via a 50 um Sutter move (get_psf_v2.m:210-263) -----
+%% ---- pixel size: pxPerMu via a 50 um Sutter move (get_psf_no_power:163-192) --
 muUsed = 50;
 disp('Determining pxPerMu...')
 
-% peak plane / spot to track (brightest bead in the grid)
-mxProj = max(dataUZ, [], 3);
-[cx, cy] = function_findcenter(mxProj);
-
 sutter.moveTo([0 0 0]); pause(1);
-mssend(masterSocket, [pwr/1000 1 1]); wait_gotit(masterSocket);
 p1 = mean(double(bas.grab(nframesCapture)), 3);
-mssend(masterSocket, [0 1 1]); wait_gotit(masterSocket);
 
 sutter.moveTo([0 muUsed 0]); pause(1);
-mssend(masterSocket, [pwr/1000 1 1]); wait_gotit(masterSocket);
 p2 = mean(double(bas.grab(nframesCapture)), 3);
-mssend(masterSocket, [0 1 1]); wait_gotit(masterSocket);
 sutter.moveToRef()
 
 [x1, y1] = function_findcenter(max(p1 - bgd, 0));
@@ -225,9 +192,7 @@ refs = struct();
 
 % (a) blank-SLM raster/frame of the same field, no hologram.
 slm.blank();   % feeds zeros(Nx,Ny); dimension-safe
-mssend(masterSocket, [pwr/1000 1 1]); wait_gotit(masterSocket);
 refs.reference_blank = mean(double(bas.grab(nframesCapture)), 3);
-mssend(masterSocket, [0 1 1]); wait_gotit(masterSocket);
 slm.feed(Holo);   % restore the grid
 
 % (b) "existing static correction disabled" reference.
@@ -263,7 +228,7 @@ meta.z_planes_um      = UZ;
 meta.pxPerMu          = pxPerMu;
 meta.pixel_size_um    = pixel_size_um;
 meta.wavelength_nm    = wavelength;
-meta.power_mW         = pwr;
+meta.power_mW         = pwr_mW;      % operator-recorded (set by hand)
 meta.frames_averaged  = nframesCapture;
 meta.camera_exposure  = bas.exposure;
 meta.na               = na;
@@ -288,14 +253,7 @@ end
 
 outpaths = save_bead_stack(outdir, stem, dataUZ, bgd, refs, meta);
 
+slm.blank()   % park the SLM, as get_psf_no_power does on exit
+
 fprintf('\nAcquisition complete in %.0f s. Output in:\n  %s\n', toc(tBegin), outdir);
 disp(outpaths)
-
-%% ---- local helper -----------------------------------------------------------
-function wait_gotit(sock)
-% Block until the DAQ power responder acks the gate command (get_psf_v2 pattern).
-invar = [];
-while ~strcmp(invar, 'gotit')
-    invar = msrecv(sock, 0.01);
-end
-end
