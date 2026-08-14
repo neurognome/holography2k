@@ -40,6 +40,12 @@ on for the acquisition, exactly like `get_psf_no_power.m`.
    - acquire the stack, let the bleaching re-check pass, then it saves.
 4. **Handoff** (see below).
 
+Sutter settle times (`settle_first_s` = 3 s after the big initial jump,
+`settle_step_s` = 0.3 s per step) are tuned to match
+`alignment/alignSLMtoCam/align_slm_to_camera_scope2k.m`. If planes look blurred or
+z-misregistered, the stage is being read before it settles — raise these, don't
+lower them.
+
 ## Two rules that matter for the analysis
 
 - **No saturation.** Both phase retrieval and deconvolution fail on clipped

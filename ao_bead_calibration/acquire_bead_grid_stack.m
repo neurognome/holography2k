@@ -43,6 +43,13 @@ gridOpts        = struct('frame','SLM', 'n',20);
 UZ              = linspace(-30, 30, 61);   % um about focus, ~1 um step (README item 13)
 nframesCapture  = 10;                       % frames averaged per plane
 
+% Sutter settle times. Matched to align_slm_to_camera_scope2k.m's camera z-loop:
+% the first plane is a large jump from reference and needs a long settle, every
+% subsequent 1 um step a short one. Grabbing before the stage settles gives
+% blurred / z-misregistered planes -- do not shorten these without checking.
+settle_first_s  = 3;                         % s, after the large initial jump
+settle_step_s   = 0.3;                        % s, after each small z step
+
 % Power is set MANUALLY (no DAQ control here). Record the mW you dialed in for
 % the metadata handoff -- leave [] and it is flagged NEEDS_INPUT.
 pwr_mW          = [];               % <- fill in the power you set by hand
@@ -135,7 +142,7 @@ for i = 1:numel(UZ)
     fprintf('Plane %d/%d (z = %+.1f um)\n', i, numel(UZ), UZ(i));
     sutter.moveZ(UZ(i))
 
-    if i == 1, pause(1); else, pause(0.1); end
+    if i == 1, pause(settle_first_s); else, pause(settle_step_s); end
 
     data = bas.grab(nframesCapture);
     dataUZ(:,:,i) = mean(double(data), 3);   % RAW averaged plane
@@ -150,15 +157,17 @@ for i = 1:numel(UZ)
 end
 
 sutter.moveToRef()
+pause(0.1)
 disp('Done collecting stack.')
 
 %% ---- bleaching check (README item 11) ---------------------------------------
 % Re-grab the first plane; if the field is now dimmer at equivalent focus the
 % axial profile is corrupted -> retake at lower power. (Beam is on throughout,
 % so this measures real bleaching of the beads.)
-sutter.moveZ(UZ(1)); pause(0.5);
+sutter.moveZ(UZ(1)); pause(settle_first_s);   % large jump back to the first plane
 recheck = mean(double(bas.grab(nframesCapture)), 3);
 sutter.moveToRef()
+pause(0.1)
 
 first_signal  = sum(dataUZ(:,:,1) - mean(bgd(:)), 'all');
 recheck_signal = sum(recheck - mean(bgd(:)), 'all');
@@ -174,12 +183,13 @@ end
 muUsed = 50;
 disp('Determining pxPerMu...')
 
-sutter.moveTo([0 0 0]); pause(1);
+sutter.moveTo([0 0 0]); pause(settle_first_s);
 p1 = mean(double(bas.grab(nframesCapture)), 3);
 
-sutter.moveTo([0 muUsed 0]); pause(1);
+sutter.moveTo([0 muUsed 0]); pause(settle_first_s);   % 50 um lateral jump
 p2 = mean(double(bas.grab(nframesCapture)), 3);
 sutter.moveToRef()
+pause(0.1)
 
 [x1, y1] = function_findcenter(max(p1 - bgd, 0));
 [x2, y2] = function_findcenter(max(p2 - bgd, 0));

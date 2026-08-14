@@ -112,13 +112,19 @@ zSLM   = [-0.03 -0.015 0 0.015 0.03];   % SLM defocus coeffs to probe
 zScan  = linspace(-40, 40, 41);         % Sutter search range (um) per defocus
 focus_um = zeros(size(zSLM));
 
+% Sutter settle times, matched to align_slm_to_camera_scope2k.m: long settle
+% after the large jump back to the start of each scan, short after each step.
+settle_first_s = 3;
+settle_step_s  = 0.3;
+
 sutter.setRef()
 for m = 1:numel(zSLM)
     [Hm, ~, ~] = function_Make_3D_SHOT_Holos(Setup, [xc yc zSLM(m) 1]);
     slm.feed(Hm);
     prof = zeros(size(zScan));
     for j = 1:numel(zScan)
-        sutter.moveZ(zScan(j)); if j==1, pause(0.5); else, pause(0.05); end
+        sutter.moveZ(zScan(j));
+        if j==1, pause(settle_first_s); else, pause(settle_step_s); end
         fr = mean(double(bas.grab(nframes)), 3);
         prof(j) = max(fr(:));
     end
@@ -127,6 +133,7 @@ for m = 1:numel(zSLM)
     fprintf('(7) SLM z=%+.3f -> focus at Sutter z=%+.1f um\n', zSLM(m), focus_um(m));
 end
 sutter.moveToRef()
+pause(0.1)
 
 pfit = polyfit(zSLM(:), focus_um(:), 1);
 defocus_scale_um_per_unit = pfit(1);      % um focal shift per unit SLM-z
