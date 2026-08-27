@@ -1,2 +1,14 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary assets, pinned explicitly. `* text=auto` above lets git GUESS, and a
+# misdetected binary gets LF-normalised on checkout -- which for a phase mask means
+# a silently corrupted wavefront, not a failure. This repo had no tracked binaries
+# until slm/corrections/, so that rule had never been exercised against one.
+*.bmp binary
+*.png binary
+*.tif binary
+*.tiff binary
+*.mat binary
+*.lut binary
+*.LUT binary
