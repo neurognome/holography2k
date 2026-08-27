@@ -66,6 +66,11 @@ Setup.SLM.lut_file = 'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LU
 Setup.SLM.reg_lut = libpointer('string');
 Setup.SLM.true_frames = 3;
 Setup.SLM.pixelmax = 255;%190; changed 4/10/19 improves diffraction efficiency
+% Static wavefront correction, in RADIANS, added to every hologram before the phase
+% is wrapped (phase_to_frame). Empty means "none", which is byte-for-byte the old
+% behaviour. Build it with load_slm_correction; the Meadowlark hardware LUT above is
+% a separate thing (a per-pixel voltage response curve, not a wavefront).
+Setup.SLM.correction = [];
 if Setup.SLM.is_onek
     Setup.SLM.Nx=1024;
     Setup.SLM.Ny=1024;

@@ -552,10 +552,18 @@ classdef HoloListener < handle
                         HR = [];   % generate_holograms_new reads it itself
                     end
                     k = local_match_channel(HR, c, got);
+                    % Per-CHANNEL Setup, copied so the shared obj.Setup is never
+                    % mutated. The ONLY per-channel field is the static wavefront
+                    % correction, and it has to be per-channel: two boards have
+                    % different aberrations, so one shared Setup would give both the
+                    % same correction -- and whichever channel compiled last would
+                    % decide which one, silently.
+                    Setup_k = obj.Setup;
+                    Setup_k.SLM.correction = active(k).correction;
                     if isempty(HR)
-                        hololist = generate_holograms_new(obj.comm, obj.Setup, calib(k));
+                        hololist = generate_holograms_new(obj.comm, Setup_k, calib(k));
                     else
-                        hololist = generate_holograms_new(obj.comm, obj.Setup, calib(k), HR);
+                        hololist = generate_holograms_new(obj.comm, Setup_k, calib(k), HR);
                     end
                     holos{k} = uint8(hololist);
                     got(k) = true;
@@ -950,6 +958,11 @@ function [slm_all, inv_wl, src] = local_slm_inventory(explicit_wl)
 
     lut_dir = local_cfg([], 'paths.slm_lut_dir', ...
         'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\LUT Files');
+    % Base folder for a RELATIVE slm_correction on an opto channel. Meadowlark ships
+    % its own wavefront-correction files under 'WFC Files', which is why that is the
+    % literal fallback; an absolute slm_correction ignores this.
+    corr_dir = local_cfg([], 'paths.slm_correction_dir', ...
+        'C:\Program Files\Meadowlark Optics\Blink OverDrive Plus\WFC Files');
 
     inv_wl  = zeros(1, numel(t));
     slm_all = [];
@@ -963,22 +976,29 @@ function [slm_all, inv_wl, src] = local_slm_inventory(explicit_wl)
         if isempty(board) || isempty(lut)
             % Channel declares no board/LUT: derive both from the wavelength, the
             % behaviour every rig had before this was configurable.
-            slm_all = [slm_all, local_open_by_wavelength(wl_i)]; %#ok<AGROW>
-            continue
+            s_i = local_open_by_wavelength(wl_i);
+        else
+            if ~local_is_abs(lut)
+                lut = fullfile(lut_dir, lut);
+            end
+            if exist(lut, 'file') ~= 2
+                error('holo_listener:noLut', ...
+                    ['Channel ''%s'' (%d nm) declares LUT\n  %s\nwhich does not ' ...
+                     'exist. Fix slm_lut for that opto channel in the rig file and\n' ...
+                     're-run publish_rig_config() on the DAQ.'], ...
+                    char(t(i).name), wl_i, lut);
+            end
+            s_i = MeadowlarkOneK(double(board), lut);
+            pinned = pinned + 1;
+            fprintf('Loaded %dnm SLM (board %d, pinned by the rig).\n', wl_i, board);
         end
-        if ~local_is_abs(lut)
-            lut = fullfile(lut_dir, lut);
-        end
-        if exist(lut, 'file') ~= 2
-            error('holo_listener:noLut', ...
-                ['Channel ''%s'' (%d nm) declares LUT\n  %s\nwhich does not ' ...
-                 'exist. Fix slm_lut for that opto channel in the rig file and\n' ...
-                 're-run publish_rig_config() on the DAQ.'], ...
-                char(t(i).name), wl_i, lut);
-        end
-        slm_all = [slm_all, MeadowlarkOneK(double(board), lut)]; %#ok<AGROW>
-        pinned  = pinned + 1;
-        fprintf('Loaded %dnm SLM (board %d, pinned by the rig).\n', wl_i, board);
+
+        % Static wavefront correction, per BOARD. Loaded here, once, for the same
+        % reason board and LUT are: it belongs to the physical panel, not to an
+        % experiment, and a Meadowlark board cannot safely be reopened per prime.
+        local_attach_correction(s_i, t(i), corr_dir, wl_i);
+
+        slm_all = [slm_all, s_i]; %#ok<AGROW>
     end
 
     src = sprintf('config/rig opto table (%d of %d channels pin a board)', ...
@@ -1004,6 +1024,47 @@ function slm = local_open_by_wavelength(wls)
              'rig file instead.'], w);
         slm = [slm, s]; %#ok<AGROW>
     end
+end
+
+function local_attach_correction(s, ch, corr_dir, wl)
+%LOCAL_ATTACH_CORRECTION Load this channel's static wavefront correction, if declared.
+%   A channel with no slm_correction gets nothing and behaves exactly as before, so
+%   this is invisible until a rig file names a file.
+%
+%   Options ride along as a STRUCT (slm_correction_opts), not a cell: the rig config
+%   crosses the broker, and a struct of scalars/strings survives that trip in a shape
+%   both sides agree on. Every field is passed straight to load_slm_correction, so
+%   'Sign', 'Transpose', 'FlipX', 'FlipY' and 'Units' are all settable from the rig
+%   file -- which matters because Phase 4 item 19 of the AO protocol has you decide
+%   the sign empirically, and you want that decision recorded in config rather than
+%   in a re-exported file nobody can diff.
+    f = local_field(ch, 'slm_correction', '');
+    if isempty(f)
+        return
+    end
+    f = char(f);
+    if ~local_is_abs(f)
+        f = fullfile(corr_dir, f);
+    end
+    if exist(f, 'file') ~= 2
+        error('holo_listener:noCorrection', ...
+            ['Channel ''%s'' (%d nm) declares wavefront correction\n  %s\nwhich ' ...
+             'does not exist. Fix slm_correction for that opto channel in the rig\n' ...
+             'file and re-run publish_rig_config() on the DAQ, or clear the field ' ...
+             'to run\nuncorrected.'], char(local_field(ch, 'name', '?')), wl, f);
+    end
+
+    args = {};
+    opts = local_field(ch, 'slm_correction_opts', struct());
+    if isstruct(opts) && ~isempty(fieldnames(opts))
+        fn = fieldnames(opts);
+        for i = 1:numel(fn)
+            args = [args, {fn{i}, opts.(fn{i})}]; %#ok<AGROW>
+        end
+    end
+
+    fprintf('Wavefront correction for %dnm:\n', wl);
+    s.correction = load_slm_correction(f, 'Size', [s.Nx s.Ny], args{:});
 end
 
 function tf = local_is_abs(p)

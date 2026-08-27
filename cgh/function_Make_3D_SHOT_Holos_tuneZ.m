@@ -109,7 +109,8 @@ Holo.phase = wrapToPi(Holo.phase + DefocusPhase);
 %%%%%%%%%%%%%%% end: this manually add zOffset to the generated hologram
 
 
-Hologram = uint8(floor((Setup.SLM.pixelmax*(Holo.phase+pi)/(2*pi))));
+% Phase -> 8-bit frame, plus any static wavefront correction (Setup.SLM.correction).
+Hologram = phase_to_frame(Setup, Holo.phase);
 %f = figure(1); imagesc(Hologram); axis image; pause(2); close(f)
 
 [ Reconstruction ] = function_VolumeIntensity( Setup,Holo.phase,HStacks);

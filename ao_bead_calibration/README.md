@@ -89,13 +89,20 @@ Everything lands in `<data_root>/ao_bead_calibration/<yymmdd>/` under one stem:
   coords (`gridOpts.frame='SLM'`) or ScanImage/FOV coords (`'SI'`, converted here
   via `function_SItoSLM` + `find_latest_calib`). `make_grid_coords` errors out
   rather than silently dropping any target outside the SLM range.
-- **Existing static correction = the Meadowlark hardware LUT.** There is **no
-  software base-phase/Zernike layer** in the CGH path (the wrap in
-  `function_Make_3D_SHOT_Holos.m` adds only the target phase). The item-14b
-  "correction-disabled" reference therefore means reloading the SLM with a
-  **linear LUT** (`...\Blink OverDrive Plus\LUT Files\linear.LUT`), grabbing, and
-  restoring the real LUT — a manual step noted in the acquisition script. When
-  the correction is later *applied* (Phase 4), a new software base-phase hook
-  will be needed at that wrap line; that is out of scope for image collection.
+- **Existing static correction = the Meadowlark hardware LUT.** The LUT is a
+  per-pixel voltage response curve, not a wavefront. The item-14b
+  "correction-disabled" reference means reloading the SLM with a **linear LUT**
+  (`...\Blink OverDrive Plus\LUT Files\linear.LUT`), grabbing, and restoring the
+  real LUT — a manual step noted in the acquisition script.
+
+  **The software base-phase layer now exists** (it did not when this was written).
+  `cgh/phase_to_frame.m` is the single place phase becomes the 8-bit frame, and it
+  adds `Setup.SLM.correction` (radians) before wrapping — Phase 4 item 18. All four
+  CGH entry points route through it, so a correction reaches stimulation *and* the
+  alignment / PSF / diffraction-efficiency scripts, which matters because the power
+  model is calibrated against those DE numbers. Build the map with
+  `slm/load_slm_correction.m` (Meadowlark-style `.bmp`, `.mat`, or Zernike
+  coefficients via `slm/zernike_phase.m`). To disable it for a reference pass, clear
+  the field — that is byte-identical to the old behaviour.
 - **Zernike convention** on the returned correction: Noll vs OSA/ANSI, normalized
   or not (README item 17). Confirm it matches her analysis input spec.
