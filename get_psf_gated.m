@@ -8,10 +8,34 @@
 % limits hole-burning during a long axial sweep.
 %
 % RUN ORDER
-%   1. DAQ computer: run alignCodeDAQ2K. It waits up to 10 s for a wavelength,
-%      then services power requests until this script sends 'end'.
-%      RESTART IT before each run of this script -- it reads the wavelength once.
+%   1. DAQ computer: run alignCodeDAQ2K FIRST. Wait for it to print
+%      'Waiting for Hologram info'.
 %   2. Holography computer: run this file cell by cell.
+%
+%   The order is not a preference. HolochatInterface's constructor calls
+%   io.reset(id), which is a DELETE on the whole 'daq' store -- so starting
+%   alignCodeDAQ2K DESTROYS any wavelength already sitting in that mailbox. Send it
+%   first and the DAQ wipes it, then times out its comm.read(10) and errors with
+%   alignCodeDAQ2K:wavelength.
+%
+%   If that happens, you do NOT have to re-run the setup cell (which re-opens the
+%   SLM, camera and stage). Restart alignCodeDAQ2K, then in the command window:
+%       comm.send(wavelength, 'daq')
+%
+% MEASURING MORE THAN ONCE -- do not run the release cell
+%   The last cell sends 'end', which exits the DAQ's power loop for good. Leave it
+%   alone until you are finished for the session and everything below is repeatable
+%   with nothing restarted: alignCodeDAQ2K's own timeout is 100000 s and resets on
+%   every power request, so it will sit there all day.
+%
+%   To repeat a measurement, or to A/B a correction:
+%       slm.feed(Holo)                     % the release cell blanks the SLM; this
+%                                          % is only needed if you ran it
+%       re-run 'build & feed' if you changed correction_file / correction_sign
+%       re-run 'acquire the axial stack' onward
+%
+%   Only run the release cell at the very end. If you did run it, restart
+%   alignCodeDAQ2K and re-send the wavelength as above.
 %
 % MEASUREMENT NOTES -- why this does not just copy get_psf_no_power
 %   * Fits run on the RAW (background-subtracted) stack; smoothing is display-only.
