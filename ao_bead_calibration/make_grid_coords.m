@@ -39,7 +39,7 @@ if nargin < 2 || isempty(wavelength), wavelength = 1030; end
 if nargin < 3, opts = struct(); end
 
 def = struct('frame','SLM', 'power',1, 'n',36, ...
-             'xrange',[0.3 0.7], 'yrange',[0.3 0.62], 'z',0, 'calib_dir','');
+             'xrange',[0.1 0.95], 'yrange',[0.1 0.95], 'z',0, 'calib_dir','');
 opts = merge_defaults(opts, def);
 
 % ---- 1. obtain raw coordinates -----------------------------------------------

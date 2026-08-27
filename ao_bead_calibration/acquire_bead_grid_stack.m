@@ -29,7 +29,7 @@ disp('Setting up AO bead-grid acquisition...');
 makePaths()
 
 %% ---- user parameters --------------------------------------------------------
-wavelength      = 1100;              % SLM wavelength (900 / 1030 / 1100)
+wavelength      = 900;              % SLM wavelength (900 / 1030 / 1100)
 mouse_or_slide  = 'beadslide';       % label for the output stem
 epoch           = 1;
 
@@ -37,14 +37,13 @@ epoch           = 1;
 % until Genesis's coordinate file is in hand. When it arrives:
 %   gridSource = '/path/to/genesis_targets.csv';  gridOpts.frame = 'SLM'; % or 'SI'
 gridSource      = [];
-gridOpts        = struct('frame','SLM', 'n',20);
+gridOpts        = struct('frame','SLM', 'n',36);
 
 % Per-hologram power in mW, commanded to the DAQ. Set LOW and tune it in the
 % no-saturation cell below so no raw pixel reaches the 8-bit ceiling (255).
-pwr             = 5;                 % mW
 
 % z-sweep: holographic spots have long axial tails -> wide range, fine step.
-UZ              = linspace(-30, 30, 61);   % um about focus, ~1 um step (README item 13)
+UZ              = linspace(-50, 50, 101);   % um about focus, ~1 um step (README item 13)
 nframesCapture  = 10;                       % frames averaged per plane
 
 % Sutter settle times. Matched to align_slm_to_camera_scope2k.m's camera z-loop:
@@ -108,6 +107,8 @@ axis image; colorbar; title(sprintf('Expect %d spots', nSpots));
 % Preview with the hologram gated ON so you can watch the beads while tuning; then
 % confirm NO raw pixel clips at 255. Adjust `pwr` above and re-run until the
 % brightest bead is ~80% of the ceiling.
+
+pwr             = 75;                 % mW
 power_gate(comm, pwr/1000);   % beam ON
 bas.preview()                 % close the preview window when the power looks right
 power_gate(comm, 0);          % beam OFF

@@ -29,9 +29,8 @@ clc
 makePaths()
 
 %% ---- setup (same as acquire_bead_grid_stack.m) ------------------------------
-wavelength = 1100;
+wavelength = 900;
 nframes    = 10;
-pwr        = 5;      % mW, commanded to the DAQ; gated ON per grab
 
 Setup = function_loadparameters2();
 Setup.CGHMethod = 2; Setup.GSoffset = 0; Setup.verbose = 0;
@@ -48,10 +47,11 @@ bas = bascam(); bas.start()
 comm = HolochatInterface('holo');
 comm.send(wavelength, 'daq');
 comm.flush();
-
+%%
 % Preview a central spot (gated ON) and tune `pwr` to ~80% of camera max before
 % running the mapping cells.
-slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.5 0.5 0 1]));
+pwr        = 0.5;      % mW, commanded to the DAQ; gated ON per grab
+slm.feed(function_Make_3D_SHOT_Holos(Setup, [0.55 0.55 0 1]));
 power_gate(comm, pwr/1000); bas.preview(); power_gate(comm, 0);
 
 sutter.setRef()
