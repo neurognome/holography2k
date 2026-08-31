@@ -75,8 +75,8 @@ settle_step_s   = 0.3;               % s, after each small z step
 % Static wavefront correction. '' = none (and then this behaves exactly like the
 % uncorrected case). A path is loaded by load_slm_correction and applied by
 % phase_to_frame to the hologram below.
-correction_file = '';                % e.g. fullfile('slm','corrections','slm_pattern_14umaFWHM.bmp')
-correction_sign = 1;                 % +1 / -1, test both (Phase 4 item 19)
+correction_file = 'slm_pattern_30umaFWHM.bmp';                % e.g. fullfile('slm','corrections','slm_pattern_14umaFWHM.bmp')
+correction_sign = 1;                % +1 / -1, test both (Phase 4 item 19)
 
 muUsed          = 50;                % um, lateral Sutter move used for pxPerMu
 
