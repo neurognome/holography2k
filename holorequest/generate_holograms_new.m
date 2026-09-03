@@ -43,6 +43,18 @@ end
 disp('new File Detected - running HoloRequest')
 holoRequest = HRin;
 
+% THE point where the SI->SLM offsets are applied, and therefore the right place
+% to resolve them. Deliberately here rather than in HoloListener.step_compiling:
+% the listener sometimes holds the request already (preread) and sometimes lets
+% this function read it off the wire, so up there is no single moment at which
+% the request definitely exists. Down here there is exactly one.
+%
+% What it does: if the shared store has a record for this channel's wavelength,
+% it REPLACES the request's xoffset/yoffset/scale with the measured ones and
+% prints both sets. Replace, never add -- the ScanImage computer also stamps the
+% request from the same store (get_holo_adjustments -> saveAllToHoloRequest), so
+% adding would apply the correction twice.
+[holoRequest, scale_center] = apply_holo_adjustments(holoRequest);
 
 patterns = arrayfun(@Pattern.from_struct, holoRequest.patterns);
 og_dims = size(patterns);
@@ -51,11 +63,17 @@ patterns = patterns(:)';
 scale = holoRequest.scale;
 for p = patterns
     if scale ~= 1
-        % center to 0,0, scale, then decenter
-        scale_center = [.5, .5];
-
-        p.targets(:,1)=scale*(p.targets(:,1)-scale_center(1))+holoRequest.xoffset+scale_center(:,1);
-        p.targets(:,2)=scale*(p.targets(:,2)-scale_center(2))+holoRequest.yoffset+scale_center(:,2);
+        % center to 0,0, scale, then decenter.
+        %
+        % scale_center is now RESOLVED (see local_apply_adjustments), not the
+        % literal [.5 .5] that used to sit here. targets are ScanImage PIXELS,
+        % 0..512, so a pivot of [0.5 0.5] is the frame CORNER, not its middle --
+        % which means any scale ~= 1 also shifted everything by about
+        % (scale-1)*256 px. That survived because 1030 nm is the only wavelength
+        % that has ever used a non-unit scale and its offsets were hand-tuned
+        % through the error.
+        p.targets(:,1)=scale*(p.targets(:,1)-scale_center(1))+scale_center(1)+holoRequest.xoffset;
+        p.targets(:,2)=scale*(p.targets(:,2)-scale_center(2))+scale_center(2)+holoRequest.yoffset;
     else  % old behavior-
         p.targets(:,1)=p.targets(:,1)+holoRequest.xoffset;
         p.targets(:,2)=p.targets(:,2)+holoRequest.yoffset;
