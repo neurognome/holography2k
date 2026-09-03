@@ -60,7 +60,7 @@ function [measured, found, det] = detect_holeburns(base, post, commanded, vararg
     n = size(commanded, 1);
 
     if isempty(o.Radius)
-        o.Radius = 0.4 * local_pitch(commanded);
+        o.Radius = 0.4 * local_pitch(commanded, [H W]);
     end
     o.Radius = max(3, o.Radius);
 
@@ -127,13 +127,20 @@ function [measured, found, det] = detect_holeburns(base, post, commanded, vararg
 end
 
 % -------------------------------------------------------------------------
-function pitch = local_pitch(commanded)
+function pitch = local_pitch(commanded, frame)
 %LOCAL_PITCH Nearest-neighbour spacing of the commanded grid.
 %   Used only to size the default search radius, so the median is the right
 %   summary: a couple of dropped grid points must not widen every window.
+%
+%   With ONE target there is no spacing -- and, crucially, no neighbour it could
+%   be confused with, so the window should be generous rather than tight. A
+%   fixed small default is actively wrong here: the single-hole power test is
+%   run precisely when the rig may be badly misaligned, so the hole can be tens
+%   of pixels from where it was asked for, and a narrow window would report "no
+%   hole" for a hole that burned perfectly well.
     n = size(commanded, 1);
     if n < 2
-        pitch = 20;
+        pitch = min(frame) / 4;      % -> a radius of min(frame)/10
         return
     end
     d = inf(n, 1);
